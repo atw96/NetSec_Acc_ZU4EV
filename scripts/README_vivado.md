@@ -10,7 +10,9 @@
 - 从 ALINX 官网/购板附带资料下载 AXU4EV 官方参考工程与 Board Files。
 
 ## 2. 新建 Vivado 工程
-1. `Create Project` → 选择 `RTL Project` → Part 选择 `xczu4ev-sfvc784-1-e`（或按官方参考工程核对具体 speed grade）。
+1. `Create Project` → 选择 `RTL Project` → Part 选择 `xczu4ev-sfvc784-1-i`
+   （已用用户本人 EdgeAI-ZU4EV 项目的 `tcl/create_block_design.tcl` 及
+   ALINX 官方器件目录交叉核实，可信度高）。
 2. 将本仓库 `rtl/` 目录下所有 `.sv` 文件加入工程（`Add Sources` → `Add or create design sources`）。
    建议按以下顺序添加以避免包(package)依赖报错：
    ```

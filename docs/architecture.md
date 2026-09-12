@@ -34,10 +34,39 @@
 
 ## 2. 目标硬件平台
 
-- 板卡：ALINX AXU4EV
-- SoC：Xilinx Zynq UltraScale+ ZU4EV-2SFVC784（四核 Cortex-A53 + 双核 Cortex-R5）
-- PL 资源：约 141K LUT
-- 接口：千兆/RGMII 以太网 PHY、SFP 高速光口、DDR4
+- 核心板 (SoM)：ALINX **ACU4EV**，芯片 Xilinx Zynq UltraScale+ **XCZU4EV-1SFVC784I**
+  （四核 Cortex-A53 + 双核 Cortex-R5）
+- 载板 (Carrier)：ALINX **AXU4EV-P**，提供 2× 千兆以太网(RJ45, 经RGMII转PHY) +
+  2× SFP+ 光口 + PCIe + HDMI/DP + M.2 等外设
+- **PL 资源（已用官方数据校正，见下方来源说明）**：
+  - LUT：87,840　FF：175,680　BRAM(36Kb)：128　UltraRAM：48　DSP48E2：728
+  - MMCM：4　GTH 高速收发器：4
+  - **重要更正**：原始需求文档中"PL端资源约141K LUT"的数字有误，已用
+    ACU4EV 官方器件目录数据（XCZU4EV-1SFVC784I）校正为 87,840 LUT。
+- DDR4：核心板自带 4GB(64bit) + 1GB(16bit) DDR4，Vivado 中通过 Zynq PS 硬核 DDR
+  控制器接入，通常无需 PL 侧额外 XDC 引脚约束。
+
+### 关于网络接口的重要架构说明（首版文档曾有简化，此处更正）
+
+AXU4EV-P 载板上的 2 路千兆 RJ45 与 2 路 SFP+ **物理层实现方式不同**：
+- **2× RJ45 千兆口**：大概率通过 RGMII 总线连接外部千兆 PHY 芯片，PL 侧需要
+  Xilinx GMII-to-RGMII / Tri-Mode MAC 等软核 IP + 普通 HP/HD Bank 引脚，
+  与本仓库原始设计假设一致。
+- **2× SFP+ 光口**：SFP+ 速率(可达10G/25G等)通常直接由 ZU4EV 的 **GTH 高速收发器**
+  驱动，走的是 10G/25G Ethernet Subsystem 或自定义 SerDes 逻辑，**不经过 RGMII**，
+  也不是普通 Bank 引脚约束（而是走 GTH 专用的 Transceiver 约束方式）。
+  若希望本项目支持 SFP+ 口，需要额外集成对应速率的 Xilinx Ethernet IP
+  （如 10G/25G Ethernet Subsystem），当前仓库尚未包含该部分，作为后续可扩展方向。
+
+**数据来源说明**：以上型号/资源数据来自 ALINX 官方器件目录聚合站点
+(boards.fpgadeveloper.com 的 ACU4EV / AXU4EV-P Carrier 条目)，芯片型号与用户本人
+已有开源项目 `EdgeAI-ZU4EV`（`tcl/create_block_design.tcl` 中 `PART =
+"xczu4ev-sfvc784-1-i"`，已实际生成过 bitstream）交叉印证一致，可信度较高；
+但**具体到 RGMII/SFP+ 信号的引脚编号(LOC)**，本沙箱环境无法访问 ALINX 官网/
+原理图 PDF，也未在用户已有开源项目中找到（该项目走 PS 侧 AXI-DMA + PL HLS IP
+架构，未使用 PL 侧网络接口，因此其 XDC 里没有 RGMII/SFP 相关约束），
+故 `constraints/axu4ev_template.xdc` 中这部分仍为占位符，需要你从随板附带的
+官方资料或 ALINX 官网下载真实原理图确认。
 
 ## 3. 数据通路接口约定
 

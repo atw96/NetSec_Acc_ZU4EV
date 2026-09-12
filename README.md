@@ -1,7 +1,7 @@
 # NetSec-Accel-ZU4EV
 ### 网络安全方向 FPGA 加速平台（求职作品集 / 原理验证级工程）
 
-目标硬件：ALINX AXU4EV（Xilinx Zynq UltraScale+ ZU4EV-2SFVC784）
+目标硬件：ALINX ACU4EV 核心板 + AXU4EV-P 载板（Xilinx Zynq UltraScale+ XCZU4EV-1SFVC784I）
 
 > **诚实声明**：本仓库由 AI 编码助手（Claude）在无 Vivado / 无实体开发板的沙箱环境中
 > 自动生成骨架、RTL 代码与文档，并使用开源仿真器 **Icarus Verilog** + **Python
