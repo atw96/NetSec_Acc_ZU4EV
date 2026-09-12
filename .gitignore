@@ -1,0 +1,10 @@
+*.vvp
+*.vcd
+__pycache__/
+*.pyc
+bitstream_output/*.bit
+bitstream_output/*.bin
+.Xil/
+*.jou
+*.log
+vivado_project/
