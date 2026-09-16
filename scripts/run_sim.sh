@@ -22,6 +22,8 @@ run flow_table     rtl/flow_table/flow_table.sv tb/simple_tb/tb_flow_table.sv
 run ips_decision   rtl/ips_decision/ips_decision.sv tb/simple_tb/tb_ips_decision.sv
 run modexp         rtl/crypto/modexp/modexp_demo.sv tb/simple_tb/tb_modexp.sv
 run common_smoke   rtl/common/sync_fifo.sv rtl/common/cdc_sync.sv tb/simple_tb/tb_common_smoke.sv
+run l0_loopback    rtl/crypto/aes/aes_sbox_pkg.sv rtl/crypto/aes/aes128_core.sv rtl/common/sync_fifo.sv rtl/packet_parser/packet_parser.sv rtl/flow_table/flow_table.sv rtl/dpi_engine/dpi_matcher.sv rtl/ips_decision/ips_decision.sv rtl/top/pkt_gen_bram.sv rtl/top/netsec_datapath.sv tb/simple_tb/tb_l0_loopback.sv
+run aes_datapath   rtl/crypto/aes/aes_sbox_pkg.sv rtl/crypto/aes/aes128_core.sv rtl/common/sync_fifo.sv rtl/packet_parser/packet_parser.sv rtl/flow_table/flow_table.sv rtl/dpi_engine/dpi_matcher.sv rtl/ips_decision/ips_decision.sv rtl/top/pkt_gen_bram.sv rtl/top/netsec_datapath.sv tb/simple_tb/tb_aes_datapath.sv
 
 echo "=============================================="
 echo "All testbenches executed. Review PASS/FAIL lines above."

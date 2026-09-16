@@ -63,6 +63,11 @@ module tb_checksum;
         mem[10]=16'h5A55; mem[11]=16'h3445; mem[12]=16'h5621;
         feed_and_check(16'h6ABB, "vec2_string");
 
+        // vec3: single word 0x1234 + last (board MMIO golden)
+        len = 1;
+        mem[0] = 16'h1234;
+        feed_and_check(16'hEDCB, "vec3_single_1234");
+
         if (errors == 0) $display("PASS: tb_checksum all vectors matched Python golden model.");
         else             $display("tb_checksum: %0d FAILURE(S)", errors);
         $finish;

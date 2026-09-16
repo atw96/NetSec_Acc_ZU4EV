@@ -1,6 +1,7 @@
 // modexp_demo.sv
 // 简化版模幂运算 Demo（32bit，Square-and-Multiply，非 Montgomery）。
-// 明确声明：这是原理演示模块，不是可商用的 RSA 加速器，见 05_crypto_engine.md。
+// 模乘用寄存乘法 + 多周期恢复余数，避免综合出单周期 64bit `%`。
+// 明确声明：原理演示，不是可商用 RSA 加速器。
 module u_modexp_demo #(
     parameter WIDTH = 32
 ) (
@@ -14,55 +15,127 @@ module u_modexp_demo #(
     output logic [WIDTH-1:0]   result
 );
 
-    typedef enum logic [1:0] {S_IDLE, S_RUN, S_DONE} state_e;
-    state_e state;
+    localparam int PROD_W = 2 * WIDTH;
 
-    logic [WIDTH-1:0]   base_reg, mod_reg, result_reg;
-    logic [WIDTH-1:0]   exp_reg;
-    logic [2*WIDTH-1:0] mul_tmp;
+    typedef enum logic [2:0] {
+        ST_IDLE,
+        ST_RED,
+        ST_LOOP,
+        ST_PROD,
+        ST_DIV
+    } st_e;
 
-    // 组合模乘（WIDTH bit）：真实工程中此处应替换为 Montgomery 模乘以避免长除法开销，
-    // 当前用行为级 % 运算符描述功能，供仿真验证正确性使用。
-    function automatic [WIDTH-1:0] modmul(input [WIDTH-1:0] a, input [WIDTH-1:0] b, input [WIDTH-1:0] m);
-        logic [2*WIDTH-1:0] p;
-        p = a * b;
-        modmul = (m == 0) ? '0 : (p % m);
-    endfunction
+    st_e                st, st_ret;
+    logic [WIDTH-1:0]   base_r, exp_r, mod_r, acc_r;
+    logic [PROD_W-1:0]  prod;
+    logic [WIDTH:0]     rem;
+    logic [WIDTH:0]     sh;
+    logic [6:0]         div_i;
+    logic               mul_to_acc; // 1: write rem to acc; 0: write rem to base
+    logic               do_sqr_next;
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            state      <= S_IDLE;
-            done       <= 1'b0;
-            result     <= '0;
-            base_reg   <= '0;
-            exp_reg    <= '0;
-            mod_reg    <= '0;
-            result_reg <= '0;
+            st          <= ST_IDLE;
+            st_ret      <= ST_IDLE;
+            done        <= 1'b0;
+            result      <= '0;
+            base_r      <= '0;
+            exp_r       <= '0;
+            mod_r       <= '0;
+            acc_r       <= '0;
+            prod        <= '0;
+            rem         <= '0;
+            div_i       <= '0;
+            mul_to_acc  <= 1'b0;
+            do_sqr_next <= 1'b0;
         end else begin
             done <= 1'b0;
-            case (state)
-                S_IDLE: begin
+            case (st)
+                ST_IDLE: begin
                     if (start) begin
-                        base_reg   <= (mod_in == 0) ? base_in : (base_in % mod_in);
-                        exp_reg    <= exp_in;
-                        mod_reg    <= mod_in;
-                        result_reg <= (mod_in <= 1) ? '0 : {{(WIDTH-1){1'b0}}, 1'b1}; // result=1
-                        state      <= S_RUN;
+                        mod_r       <= mod_in;
+                        exp_r       <= exp_in;
+                        acc_r       <= (mod_in <= 1) ? '0 : {{(WIDTH-1){1'b0}}, 1'b1};
+                        prod        <= {{WIDTH{1'b0}}, base_in};
+                        rem         <= '0;
+                        div_i       <= WIDTH[6:0];
+                        mul_to_acc  <= 1'b0;
+                        do_sqr_next <= 1'b0;
+                        if (mod_in <= 1) begin
+                            result <= '0;
+                            done   <= 1'b1;
+                            st     <= ST_IDLE;
+                        end else begin
+                            st <= ST_RED;
+                        end
                     end
                 end
-                S_RUN: begin
-                    if (exp_reg == '0) begin
-                        result <= result_reg;
-                        done   <= 1'b1;
-                        state  <= S_IDLE;
+                // base_in % mod  : WIDTH 拍恢复余数
+                ST_RED: begin
+                    if (div_i == 0) begin
+                        base_r <= rem[WIDTH-1:0];
+                        st     <= ST_LOOP;
                     end else begin
-                        if (exp_reg[0])
-                            result_reg <= modmul(result_reg, base_reg, mod_reg);
-                        base_reg <= modmul(base_reg, base_reg, mod_reg);
-                        exp_reg  <= exp_reg >> 1;
+                        sh = {rem[WIDTH-1:0], prod[div_i-1]};
+                        if (sh >= {1'b0, mod_r})
+                            rem <= sh - {1'b0, mod_r};
+                        else
+                            rem <= sh;
+                        div_i <= div_i - 1'b1;
                     end
                 end
-                default: state <= S_IDLE;
+                ST_LOOP: begin
+                    if (exp_r == '0) begin
+                        result <= acc_r;
+                        done   <= 1'b1;
+                        st     <= ST_IDLE;
+                    end else if (exp_r[0]) begin
+                        mul_to_acc  <= 1'b1;
+                        do_sqr_next <= 1'b1;
+                        st_ret      <= ST_LOOP;
+                        st          <= ST_PROD;
+                    end else begin
+                        mul_to_acc  <= 1'b0;
+                        do_sqr_next <= 1'b0;
+                        st_ret      <= ST_LOOP;
+                        st          <= ST_PROD;
+                    end
+                end
+                ST_PROD: begin
+                    if (mul_to_acc)
+                        prod <= acc_r * base_r;
+                    else
+                        prod <= base_r * base_r;
+                    rem   <= '0;
+                    div_i <= PROD_W[6:0];
+                    st    <= ST_DIV;
+                end
+                ST_DIV: begin
+                    if (div_i == 0) begin
+                        if (mul_to_acc)
+                            acc_r <= rem[WIDTH-1:0];
+                        else begin
+                            base_r <= rem[WIDTH-1:0];
+                            exp_r  <= exp_r >> 1;
+                        end
+                        if (mul_to_acc && do_sqr_next) begin
+                            mul_to_acc  <= 1'b0;
+                            do_sqr_next <= 1'b0;
+                            st          <= ST_PROD;
+                        end else begin
+                            st <= st_ret;
+                        end
+                    end else begin
+                        sh = {rem[WIDTH-1:0], prod[div_i-1]};
+                        if (sh >= {1'b0, mod_r})
+                            rem <= sh - {1'b0, mod_r};
+                        else
+                            rem <= sh;
+                        div_i <= div_i - 1'b1;
+                    end
+                end
+                default: st <= ST_IDLE;
             endcase
         end
     end

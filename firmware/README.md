@@ -1,46 +1,43 @@
-# PS 端控制程序骨架 (firmware/)
+# PS 端控制程序（OCM 裸机）
 
-本目录为 PS 侧（裸机 / PetaLinux 用户态）AXI-Lite 寄存器驱动骨架，用于：
-- 规则/特征库下发
-- 流表状态查询与人工加白/拉黑
-- 统计计数器读取（命中数、丢包数等）
+基址：**0x8005_0000**。自测步骤见 [`docs/selftest_loopback.md`](../docs/selftest_loopback.md)。
 
-## 寄存器地址映射（示例，需与 Vivado IP 集成时的实际地址对齐）
+**不依赖 DDR。** 当前 BD 是最小 PS（无厂家 DDR 时序），程序必须链到 OCM `0xFFFC0000`。
+
+## 构建
+
+1. `scripts/build.tcl` 成功后会写出 `firmware/netsec.xsa`（若本步失败，在实现后的 Vivado 里手动 `write_hw_platform -fixed -include_bit`）。
+2. Vitis 2020.1：New Application Project，硬件平台选 `netsec.xsa`，应用选 Hello World 再换成 `netsec_test.c`。
+3. 用 [`lscript.ld`](lscript.ld) 替换默认链接脚本（去掉 DDR 段）。
+4. UART0 115200 8N1（MIO42/43）。板载 USB-UART 看打印。
+5. Run / Debug 经 JTAG 下载到 A53。不要依赖 FSBL+SD 除非已换成厂家完整 PS。
+
+L3 双口（GEM3 ↔ PL）：`netsec_l3_gem3.c`，xsct 批处理：
+
+```bat
+xsct scripts/build_ps_app.tcl
+powershell -File scripts/run_l3_dualport.ps1
+```
+
+邮箱 `0xFFFEF000`：magic `NS3L`、PL 计数、GEM 回显数。JTAG 烧图用 TCK 100 kHz，xsct `dow` 用 1 MHz。
+
+与 JTAG 路径对照：同一套 L0/L1 序列（CTRL 写 `0x3` 再 `0x101`），`hw_jtag.tcl` 的 `nsec_l0_test` 读数应与串口一致。
+
+期望 UART（与 2026-09-12 JTAG L0 实测对齐）：
+
+```
+L0 STATUS=0003001b RX=2 TX=1 FWD=1 DROP=0 MIR=1 DPI=1
+```
+
+## 寄存器
 
 | 偏移 | 寄存器 | 说明 |
 |---|---|---|
-| 0x00 | CTRL | bit0: 全局使能; bit1: 软复位 |
-| 0x04 | STATUS | bit0: 数据面就绪 |
-| 0x10 | FLOW_QUERY_KEY_LO/HI | 待查询流的五元组（多字寄存器） |
-| 0x20 | FLOW_UPDATE_IDX | 目标流表项索引 |
-| 0x24 | FLOW_UPDATE_STATE | 写入的新状态(00/01/10/11) |
-| 0x30 | STAT_DROP_CNT | 累计丢包计数 |
-| 0x34 | STAT_MIRROR_CNT | 累计告警(镜像上送)计数 |
-
-## 裸机驱动骨架 (C)
-
-```c
-// axi_lite_driver.h (骨架，需替换 BASE_ADDR 为实际 Vivado 地址编辑器分配的基地址)
-#define NETSEC_BASE_ADDR   0xA0000000UL
-#define REG_CTRL           (*(volatile unsigned int*)(NETSEC_BASE_ADDR + 0x00))
-#define REG_STATUS         (*(volatile unsigned int*)(NETSEC_BASE_ADDR + 0x04))
-#define REG_FLOW_UPDATE_IDX   (*(volatile unsigned int*)(NETSEC_BASE_ADDR + 0x20))
-#define REG_FLOW_UPDATE_STATE (*(volatile unsigned int*)(NETSEC_BASE_ADDR + 0x24))
-#define REG_STAT_DROP_CNT     (*(volatile unsigned int*)(NETSEC_BASE_ADDR + 0x30))
-
-static inline void netsec_enable(void)      { REG_CTRL |= 0x1; }
-static inline void netsec_soft_reset(void)  { REG_CTRL |= 0x2; }
-static inline unsigned int netsec_get_drop_count(void) { return REG_STAT_DROP_CNT; }
-
-// 人工将某条流标记为阻断（例如运维通过 CLI/Web 下发黑名单）
-static inline void netsec_block_flow(unsigned int flow_idx) {
-    REG_FLOW_UPDATE_IDX   = flow_idx;
-    REG_FLOW_UPDATE_STATE = 0b11; // FS_BLOCKED
-}
-```
-
-**状态说明**：以上为骨架代码，尚未在真实硬件上验证（本沙箱无 AXU4EV 板卡与 Vivado
-地址编辑器生成的真实基地址）。集成到 Vivado Block Design 后，请以 Address Editor
-中分配的实际基地址替换 `NETSEC_BASE_ADDR`，并根据 AXI-Lite 从设备(u_ips_decision
-外围包装的寄存器接口，需自行补充一层 AXI4-Lite Slave 适配逻辑，当前仓库的核心模块
-只暴露了简化的原生信号接口，AXI-Lite 封装层属于待补充的集成工作)。
+| 0x00 | CTRL | `[0]` enable；`[1]` soft_reset；`[8]` pkt_gen_start |
+| 0x04 | STATUS | `[0]` ready；`[1]` mmcm；`[2]` phy_link |
+| 0x08 | LOOPBACK | 0=L3 1=L0 2=L1 3=L2 4=L4 |
+| 0x10..0x24 | 计数器 | RX/TX/FWD/DROP/MIR/DPI |
+| 0x40..0x4C | DPI_PAT | 4×32b 特征 |
+| 0x50/54/58 | MDIO | phy/reg/we/go、wdata、rdata+busy+done |
+| 0x5C | RGMII_DLY | `[8:0]` tap `[16]` load |
+| 0x60 | SFP_STATUS | 只读；默认图为 LOS stub，GT 图为 `status_vector` |

@@ -51,76 +51,79 @@ module u_aes128_core (
                            o[8],o[9],o[10],o[11],o[12],o[13],o[14],o[15]};
     endfunction
 
-    // 密钥扩展：一次性算出全部 11 轮轮密钥，拼成 1408bit（11*128）
-    function automatic [1407:0] key_expansion_fn(input [127:0] k);
-        logic [7:0] w [0:43][0:3];
-        logic [7:0] rcon [1:10];
-        logic [7:0] t0, t1, t2, t3, r0, r1, r2, r3;
-        logic [7:0] kb[0:15];
-        logic [1407:0] result;
-        int i, r, c, row;
+    // One AES round-key from the previous 128-bit key (avoids 1408-bit combo expand).
+    function automatic [127:0] expand_round_fn(input [127:0] k, input [7:0] rcon);
+        logic [31:0] w0, w1, w2, w3, temp;
+        w0 = k[127:96];
+        w1 = k[95:64];
+        w2 = k[63:32];
+        w3 = k[31:0];
+        temp = {w3[23:0], w3[31:24]};
+        temp = {aes_sbox_pkg::sbox(temp[31:24]),
+                aes_sbox_pkg::sbox(temp[23:16]),
+                aes_sbox_pkg::sbox(temp[15:8]),
+                aes_sbox_pkg::sbox(temp[7:0])};
+        temp = temp ^ {rcon, 24'h0};
+        w0 = w0 ^ temp;
+        w1 = w1 ^ w0;
+        w2 = w2 ^ w1;
+        w3 = w3 ^ w2;
+        expand_round_fn = {w0, w1, w2, w3};
+    endfunction
 
-        rcon[1]=8'h01; rcon[2]=8'h02; rcon[3]=8'h04; rcon[4]=8'h08; rcon[5]=8'h10;
-        rcon[6]=8'h20; rcon[7]=8'h40; rcon[8]=8'h80; rcon[9]=8'h1b; rcon[10]=8'h36;
-
-        for (i = 0; i < 16; i++) kb[i] = k[127-8*i -: 8];
-        for (i = 0; i < 4; i++) begin
-            w[i][0]=kb[4*i+0]; w[i][1]=kb[4*i+1]; w[i][2]=kb[4*i+2]; w[i][3]=kb[4*i+3];
-        end
-        for (i = 4; i < 44; i++) begin
-            t0=w[i-1][0]; t1=w[i-1][1]; t2=w[i-1][2]; t3=w[i-1][3];
-            if (i % 4 == 0) begin
-                r0=t1; r1=t2; r2=t3; r3=t0;          // RotWord
-                r0=aes_sbox_pkg::sbox(r0); r1=aes_sbox_pkg::sbox(r1); r2=aes_sbox_pkg::sbox(r2); r3=aes_sbox_pkg::sbox(r3); // SubWord
-                r0 = r0 ^ rcon[i/4];
-                t0=r0; t1=r1; t2=r2; t3=r3;
-            end
-            w[i][0]=w[i-4][0]^t0; w[i][1]=w[i-4][1]^t1;
-            w[i][2]=w[i-4][2]^t2; w[i][3]=w[i-4][3]^t3;
-        end
-        for (r = 0; r < 11; r++)
-            for (c = 0; c < 4; c++)
-                for (row = 0; row < 4; row++)
-                    result[1407 - 8*(16*r + 4*c + row) -: 8] = w[4*r+c][row];
-        key_expansion_fn = result;
+    function automatic [7:0] rcon_fn(input [3:0] rnd);
+        case (rnd)
+            4'd1:  rcon_fn = 8'h01;
+            4'd2:  rcon_fn = 8'h02;
+            4'd3:  rcon_fn = 8'h04;
+            4'd4:  rcon_fn = 8'h08;
+            4'd5:  rcon_fn = 8'h10;
+            4'd6:  rcon_fn = 8'h20;
+            4'd7:  rcon_fn = 8'h40;
+            4'd8:  rcon_fn = 8'h80;
+            4'd9:  rcon_fn = 8'h1b;
+            4'd10: rcon_fn = 8'h36;
+            default: rcon_fn = 8'h00;
+        endcase
     endfunction
 
     // ---------- FSM ----------
     typedef enum logic [1:0] {S_IDLE, S_ROUND, S_FINAL} state_e;
-    state_e        cur_state;
-    logic [1407:0] key_schedule;
-    logic [127:0]  state_reg;
-    logic [3:0]    round_cnt;
-    logic [127:0]  cur_round_key;
+    state_e       cur_state;
+    logic [127:0] round_key;
+    logic [127:0] state_reg;
+    logic [3:0]   round_cnt;
+    logic [127:0] next_round_key;
 
-    assign cur_round_key = key_schedule[1407 - 128*round_cnt -: 128];
+    assign next_round_key = expand_round_fn(round_key, rcon_fn(round_cnt));
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            cur_state    <= S_IDLE;
-            done         <= 1'b0;
-            ciphertext   <= '0;
-            round_cnt    <= '0;
-            state_reg    <= '0;
-            key_schedule <= '0;
+            cur_state  <= S_IDLE;
+            done       <= 1'b0;
+            ciphertext <= '0;
+            round_cnt  <= '0;
+            state_reg  <= '0;
+            round_key  <= '0;
         end else begin
             done <= 1'b0;
             case (cur_state)
                 S_IDLE: begin
                     if (start) begin
-                        key_schedule <= key_expansion_fn(key);
-                        state_reg    <= plaintext ^ key; // 初始 AddRoundKey(轮0)=原始密钥
-                        round_cnt    <= 4'd1;
-                        cur_state    <= S_ROUND;
+                        round_key <= key;
+                        state_reg <= plaintext ^ key;
+                        round_cnt <= 4'd1;
+                        cur_state <= S_ROUND;
                     end
                 end
                 S_ROUND: begin
-                    state_reg <= mix_columns_fn(shift_rows_fn(sub_bytes_fn(state_reg))) ^ cur_round_key;
+                    state_reg <= mix_columns_fn(shift_rows_fn(sub_bytes_fn(state_reg))) ^ next_round_key;
+                    round_key <= next_round_key;
                     if (round_cnt == 4'd9) cur_state <= S_FINAL;
                     round_cnt <= round_cnt + 1'b1;
                 end
                 S_FINAL: begin
-                    ciphertext <= shift_rows_fn(sub_bytes_fn(state_reg)) ^ cur_round_key;
+                    ciphertext <= shift_rows_fn(sub_bytes_fn(state_reg)) ^ next_round_key;
                     done       <= 1'b1;
                     cur_state  <= S_IDLE;
                 end

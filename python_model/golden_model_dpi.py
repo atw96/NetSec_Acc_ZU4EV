@@ -1,8 +1,7 @@
 """
 DPI 多模式匹配 —— 黄金参考模型
-包含 (a) 与 RTL 简化版本对齐的"滑动窗口精确比较"参考实现，用于逐拍比对；
-(b) 一个通用的纯 Python Aho-Corasick 参考实现，供后续若要升级 RTL 为真正
-    Aho-Corasick 自动机时，离线生成状态转移表使用（见 04 号 module_spec 文档）。
+(a) 滑动窗口精确比较（历史 RTL）
+(b) Aho-Corasick（与当前 `u_dpi_matcher` 对齐；4×4B 无重叠时与 (a) 命中位置相同）
 """
 from typing import List, Tuple
 

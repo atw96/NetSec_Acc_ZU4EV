@@ -4,7 +4,7 @@ module tb_dpi_engine;
     logic clk = 0, rst_n = 0;
     logic data_valid, data_last;
     logic [7:0] data;
-    logic hit_valid;
+    logic hit_valid, ready;
     logic [3:0] hit_vector;
     int errors = 0;
     int byte_idx;
@@ -12,6 +12,9 @@ module tb_dpi_engine;
     u_dpi_matcher dut (
         .clk(clk), .rst_n(rst_n),
         .data_valid(data_valid), .data(data), .data_last(data_last),
+        .pat0(32'h47455420), .pat1(32'h636d642e),
+        .pat2(32'h53454c45), .pat3(32'h90909090),
+        .ready(ready),
         .hit_valid(hit_valid), .hit_vector(hit_vector)
     );
 
@@ -54,15 +57,18 @@ module tb_dpi_engine;
     initial begin
         data_valid=0; data=0; data_last=0;
         #12 rst_n = 1;
-        #10;
+        repeat (30000) @(posedge clk);
+        if (ready !== 1'b1) begin
+            $display("FAIL: Aho-Corasick automaton not ready");
+            $finish;
+        end
 
         for (byte_idx = 0; byte_idx < STREAM_LEN; byte_idx++) begin
-            @(negedge clk);
             data_valid = 1;
             data       = stream[byte_idx];
             data_last  = (byte_idx == STREAM_LEN-1);
-            #1; // 让组合 hit_vector 稳定后再检查（仍在同一 negedge 之后的时刻）
-
+            @(posedge clk);
+            #1;
             if (hit_vector != 4'b0000) begin
                 if (exp_ptr < NUM_EXPECTED && byte_idx == exp_idx[exp_ptr] &&
                     hit_vector == (4'b0001 << exp_pat[exp_ptr])) begin

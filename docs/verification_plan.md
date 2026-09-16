@@ -6,9 +6,9 @@
 |---|---|---|
 | 单元级自检 Testbench | Icarus Verilog (`iverilog`/`vvp`) | ✅ 已在本仓库沙箱环境跑通（见各模块 tb 运行日志，附于 README） |
 | Python 黄金模型比对 | Python3 + pycryptodome + scapy | ✅ AES / Checksum / DPI 已建立黄金模型并比对 |
-| 报文级 UVM 环境 | QuestaSim / VCS / Xcelium（需商用许可） | 📄 骨架已给出（`tb/uvm_env/`），**未在本仓库沙箱验证**，需用户本地环境编译运行 |
-| Vivado 综合仿真 (xsim) | Vivado 本地安装 | ❌ 待用户本地执行 |
-| 板级环回/流量测试 | AXU4EV 实板 + Wireshark | ❌ 待用户本地执行 |
+| 报文级 UVM 环境 | QuestaSim / VCS / Xcelium（需商用许可） | ✅ ModelSim SE-64 2020.4 本机编译并跑通 smoke（0 UVM_ERROR），见 `tb/uvm_env/QUESTA_STATUS.md` |
+| Vivado 综合/实现 | Vivado 2020.1 | ✅ `scripts/build.tcl`：WNS +0.907 ns，比特流 `bitstream_output/system_top.bit` |
+| 板级环回/流量测试 | AXU4EVB-P + Wireshark | 🔲 比特流已就绪；流程见 `docs/selftest_loopback.md` |
 
 ## UVM 环境扩展说明
 
@@ -24,10 +24,9 @@ Driver/Monitor/Scoreboard 分层方法学，将其从"寄存器读写事务级"�
 - **Coverage**：覆盖 (a) 五元组的协议类型分布 (TCP/UDP) (b) DPI 特征命中/未命中
   (c) flow_table 状态迁移的四种决策路径。
 
-由于 Icarus Verilog 默认不包含 UVM 库（需要额外的 `uvm-verilog` 移植版本，
-兼容性/稳定性在开源社区中仍有已知限制），本仓库中的 UVM 代码为**可读的骨架代码**，
-用于面试中展示验证方法学设计能力；建议使用者在具备 QuestaSim/VCS 授权的环境
-（如学校/公司实验室）中实际编译运行，作为进一步加分项。
+由于 Icarus Verilog 默认不包含 UVM 库，单元自检仍用 Icarus；报文级 UVM 已在本机
+ModelSim SE-64 2020.4 上编译并跑通 smoke（DPI 使用厂商预编译 `uvm_dpi.dll` + `-nodpiexports`）。
+完整 pcap scoreboard / coverage 仍可按下列方法学继续扩展。
 
 ## 单元级 Testbench 清单
 
