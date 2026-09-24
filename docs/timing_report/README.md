@@ -5,6 +5,7 @@
 注意：`build_clk90off.tcl` 会覆盖本目录为 **CLK90-off** 图（最近一次 WNS +1.002 ns）。默认上板图仍是 `bitstream_output/system_top_clk90on.bit`（WNS +0.909 ns）。README 资源表以 clk90on 为准。
 
 - `timing_summary.rpt`
+- `timing_summary_sfp.rpt` / `timing_summary_sfp10g.rpt`
 - `utilization.rpt` / `utilization_synth.rpt`
 - `clock_utilization.rpt`
 

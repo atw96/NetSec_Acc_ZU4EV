@@ -10,6 +10,7 @@ bitstream_output/*.bin
 vivado_project/
 vivado_proj/
 vivado_proj_ibert/
+vivado_proj_ibert_probe/
 work/
 transcript
 vsim.wlf

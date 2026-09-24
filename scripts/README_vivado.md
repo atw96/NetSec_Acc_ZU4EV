@@ -25,6 +25,10 @@ vivado -mode batch -source scripts/build.tcl
 | `extract_ps_preset.py` | 从 factory `design_1.bd` 再生 `ps_preset.tcl` |
 | `build.tcl` | synth → impl → bitstream + 报告 |
 | `create_sfp_pcs.tcl` | 可选 1000BASE-X PCS/PMA |
+| `create_ibert.tcl` / `build_ibert.tcl` | IBERT @ **10.0G / 125 MHz**（X0Y4+X0Y5；IBERT 不能配 10.3125+125） |
+| `hw_ibert_optical_10g.tcl` | 双光口光纤外环 PRBS31，测完烧回 rxdly |
+| `create_gt_10g.tcl` / `build_sfp10g.tcl` | 双口 10GBASE-R MAC/PCS → `system_top_sfp10g.bit` |
+| `hw_sfp10g.tcl` | 10G 互环打流读计数，测完烧回 rxdly |
 
 ## PS / DDR 注意
 

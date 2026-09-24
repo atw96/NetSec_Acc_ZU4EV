@@ -49,6 +49,41 @@ set_clock_groups -asynchronous \
     -group [get_clocks -quiet gtx_clk_u] \
     -group [get_clocks -quiet sys_clk_clk_p]
 
+# 10G GT user clocks (tx_clk/rx_clk ~161 MHz from TXOUTCLK/RXOUTCLK) vs AXI / 50M / sys / refclk
+# Pin-based get_clocks often misses the generated names; also group by clock name.
+set_clock_groups -asynchronous \
+    -group [get_clocks -quiet clk_50m] \
+    -group [get_clocks -quiet tx_clk] \
+    -group [get_clocks -quiet -of_objects [get_pins -quiet -hier *u_tx_mac_clk/O]]
+set_clock_groups -asynchronous \
+    -group [get_clocks -quiet clk_50m] \
+    -group [get_clocks -quiet rx_clk] \
+    -group [get_clocks -quiet -of_objects [get_pins -quiet -hier *u_rx_mac_clk0/O]] \
+    -group [get_clocks -quiet -of_objects [get_pins -quiet -hier *u_rx_mac_clk1/O]]
+set_clock_groups -asynchronous \
+    -group [get_clocks -quiet axi_clk] \
+    -group [get_clocks -quiet tx_clk] \
+    -group [get_clocks -quiet -of_objects [get_pins -quiet -hier *u_tx_mac_clk/O]]
+set_clock_groups -asynchronous \
+    -group [get_clocks -quiet axi_clk] \
+    -group [get_clocks -quiet rx_clk] \
+    -group [get_clocks -quiet -of_objects [get_pins -quiet -hier *u_rx_mac_clk0/O]] \
+    -group [get_clocks -quiet -of_objects [get_pins -quiet -hier *u_rx_mac_clk1/O]]
+set_clock_groups -asynchronous \
+    -group [get_clocks -quiet sys_clk_clk_p] \
+    -group [get_clocks -quiet tx_clk] \
+    -group [get_clocks -quiet rx_clk]
+set_clock_groups -asynchronous \
+    -group [get_clocks -quiet mgtrefclk_125m] \
+    -group [get_clocks -quiet tx_clk] \
+    -group [get_clocks -quiet rx_clk]
+set_clock_groups -asynchronous \
+    -group [get_clocks -quiet -of_objects [get_pins -quiet -hier *u_axi_div/O]] \
+    -group [get_clocks -quiet -of_objects [get_pins -quiet -hier *gtwiz_userclk_tx_usrclk2_out*]]
+set_clock_groups -asynchronous \
+    -group [get_clocks -quiet -of_objects [get_pins -quiet -hier *u_axi_div/O]] \
+    -group [get_clocks -quiet -of_objects [get_pins -quiet -hier *gtwiz_userclk_rx_usrclk2_out*]]
+
 ################################################################
 # Bitstream (Zynq UltraScale+ — no CFGBVS / SPI_BUSWIDTH on this part)
 ################################################################

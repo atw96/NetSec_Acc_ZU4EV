@@ -50,6 +50,23 @@ foreach f {
     rtl/eth_mac_1g.v
     rtl/eth_mac_1g_rgmii.v
     rtl/eth_mac_1g_rgmii_fifo.v
+    rtl/eth_mac_phy_10g.v
+    rtl/eth_mac_phy_10g_rx.v
+    rtl/eth_mac_phy_10g_tx.v
+    rtl/eth_phy_10g.v
+    rtl/eth_phy_10g_rx.v
+    rtl/eth_phy_10g_tx.v
+    rtl/eth_phy_10g_rx_if.v
+    rtl/eth_phy_10g_tx_if.v
+    rtl/eth_phy_10g_rx_ber_mon.v
+    rtl/eth_phy_10g_rx_frame_sync.v
+    rtl/xgmii_baser_dec_64.v
+    rtl/xgmii_baser_enc_64.v
+    rtl/axis_xgmii_rx_64.v
+    rtl/axis_xgmii_tx_64.v
+    rtl/axis_baser_rx_64.v
+    rtl/axis_baser_tx_64.v
+    rtl/eth_phy_10g_rx_watchdog.v
     lib/axis/rtl/sync_reset.v
     lib/axis/rtl/axis_adapter.v
     lib/axis/rtl/axis_async_fifo.v
@@ -63,13 +80,17 @@ lappend files \
     [file join $repo_root rtl mac_pcs mdio_master.sv] \
     [file join $repo_root rtl mac_pcs sfp_pcs_wrap.sv] \
     [file join $repo_root rtl mac_pcs gt_prbs_wrap.sv] \
+    [file join $repo_root rtl mac_pcs sfp10g_wrap.sv] \
     [file join $repo_root rtl top netsec_cdc.sv] \
     [file join $repo_root rtl top netsec_regs.sv] \
     [file join $repo_root rtl top pkt_gen_bram.sv] \
+    [file join $repo_root rtl top pkt_gen_10g.sv] \
+    [file join $repo_root rtl top sfp10g_regs.sv] \
     [file join $repo_root rtl top netsec_datapath.sv] \
     [file join $repo_root rtl top netsec_top.sv] \
     [file join $repo_root rtl top system_top.sv] \
-    [file join $repo_root rtl top system_top_sfp.sv]
+    [file join $repo_root rtl top system_top_sfp.sv] \
+    [file join $repo_root rtl top system_top_sfp10g.sv]
 
 add_files -norecurse $files
 set_property file_type SystemVerilog [get_files *.sv]

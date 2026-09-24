@@ -10,7 +10,7 @@
 |----|----|
 | 日期 | 2026-09-12 |
 | 启动模式 | JTAG |
-| 电缆 | Digilent `210512180081`（TCK 1 MHz） |
+| 电缆 | Digilent HS2-class JTAG（TCK 1 MHz） |
 | 比特流时间戳 | 2026-09-16 21:48 `system_top_rxdly.bit`（AES 数据面 + Aho-Corasick DPI，WNS +0.832 ns） |
 
 ## B0 — JTAG 通路 / MMCM / LED
@@ -191,6 +191,35 @@ L3/PC 打流时保持 CTRL[12]=0。光口外环回见下节，缺模块则 LINK=
 | RX_BER | 有光时应 ≪1e-6 | **`0.575`**（无信号噪声） | NEED_HW |
 
 缺件：**1× 1000BASE-SX/LX 1.25G SFP 插 SFP1 + LC TX→RX 环回跳线**。这不是 RTL 失败。近端 PMA 仍以 2026-09-13 `LINK=1` / BER `4.03e-08` 为准。远程无法目视 SFP LED。
+
+## L4 — 10.0G IBERT 双光口光纤外环（X0Y4+X0Y5）
+
+脚本：`scripts/create_ibert.tcl` + `build_ibert.tcl` + `hw_ibert_optical_10g.tcl`。  
+refclk = **125 MHz**（SiT9121 V6/V5）。IBERT 无法配置 10.3125G+125 MHz，故 PHY 外环用 **10.0 Gbps**。`LOOPBACK=None`，PRBS31。光纤 SFP1↔SFP2。测完烧回 rxdly。
+
+| 检查 | 期望 | 实测 | 通过 |
+|------|------|------|------|
+| 线速 / refclk | 10.0G / 125 MHz | 已烧 `system_top_ibert.bit`（2026-09-24 20:09） | 是（配置） |
+| IBERT 核 | X0Y4 + X0Y5 可见 | Quad224 `MGT_X0Y4`…`X0Y7` | 是 |
+| X0Y4 LINK / BER | LINK=1，BER≪1e-9 | **LINK=0，BER≈0.500**，`RX_RECEIVED_BIT_COUNT=190741313720` | **NEED_HW** |
+| X0Y5 LINK / BER | LINK=1，BER≪1e-9 | **LINK=0，BER≈0.535**，`RX_RECEIVED_BIT_COUNT=191529219120` | **NEED_HW** |
+
+当时 IBERT 例程未驱动 `sfp_tx_dis`（D12）。`create_ibert.tcl` 现已给 example 补 D12=0；**未**用该补丁重编 IBERT 图。10G 业务图把 D12 拉低后 LOS=0、PCS lock=1，说明笼/模块/光纤可用。测完已烧回 rxdly。
+
+## L4 — `system_top_sfp10g.bit` 10GBASE-R 以太网互环
+
+脚本：`scripts/build_sfp10g.tcl` + `hw_sfp10g.tcl`。独立 top，不改 `system_top_rxdly.bit`。  
+2026-09-24 22:11 `hw_sfp10g.tcl`：**PASS**（block_lock + RX 增长），测完烧回 rxdly。
+
+| 检查 | 期望 | 实测 | 通过 |
+|------|------|------|------|
+| 综合/实现 | WNS≥0 | **WNS +1.963 ns**（`docs/timing_report/timing_summary_sfp10g.rpt`，2026-09-24 22:07 齿轮箱+RX 寄存版） | 是 |
+| STATUS `0x04` | bit8/9 lock=1，LOS=0 | **`0x2F07` 稳定**：por/tx_done/rx_done/lock0/lock1/rxst0/rxst1，LOS=0；bit13 high_ber1=1 | 是（lock） |
+| t0 → t1（3 s）TX0/RX0/BAD0 | RX 随对端 TX 涨 | TX0 `0x17ce50→0x1eda25`，RX0 `0x0bf1de→0x0f78d6`，BAD0 `0x0bf3ba→0x0f7ad8` | 是（RX 涨） |
+| t0 → t1 TX1/RX1/BAD1 | 同上 | TX1 `0x17d9ac→0x1ee536`，RX1 `0x0bf1f6→0x0f7882`，BAD1 `0x0bf3f3→0x0f7a22` | 是（RX 涨） |
+| CNT_BAD | 不涨 | BAD≈RX（几乎每帧标 bad_fcs/bad_frame）；RX 约为对端 TX 的一半 | **部分** |
+
+首版 `txsequence=0` 不成帧。补 64B66B `TXSEQUENCE` 0–32 + 把 RX `rxdata/valid` 寄一拍再 `BUFGCE` 后门控 PCS 后，双口 lock 且对端有帧。FCS 仍高，未并进 NetSec DPI。
 
 ## PS 裸机对照
 

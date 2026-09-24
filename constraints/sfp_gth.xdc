@@ -5,14 +5,18 @@
 ################################################################
 
 # GT 125 MHz differential refclk
-# SOURCE: doc/factory_vivado/.../gt.xdc ; MANUAL PAGE44
+# SOURCE: factory gt.xdc ; schematic PAGE19 SiT9121AI-2B1-33E125.000000
+# Do NOT constrain this port as 156.25 MHz. 156.25 MHz is GT TXUSRCLK2 (10.3125/66).
 set_property PACKAGE_PIN V6 [get_ports mgtrefclk_p]
 set_property PACKAGE_PIN V5 [get_ports mgtrefclk_n]
 create_clock -period 8.000 -name mgtrefclk_125m [get_ports mgtrefclk_p]
 
-# SFP1 = BANK224 Lane0 = GTHE4_CHANNEL_X0Y4
-# Serial GTH pins have no PACKAGE_PIN (dedicated). LOC when gt_sfp_prbs is present.
-set_property LOC GTHE4_CHANNEL_X0Y4 [get_cells -quiet -hier -filter {NAME =~ *gt_sfp_prbs*gthe4_channel*}]
+# SFP1 = BANK224 Lane0 = GTHE4_CHANNEL_X0Y4 (factory gtwizard XDC ch0)
+# SFP2 = BANK224 Lane1 = GTHE4_CHANNEL_X0Y5 (factory gtwizard XDC ch1)
+# Serial GTH pins have no PACKAGE_PIN (dedicated).
+set_property LOC GTHE4_CHANNEL_X0Y4 [get_cells -quiet -hier -filter {REF_NAME == GTHE4_CHANNEL && NAME =~ *gt_sfp_prbs*}]
+set_property LOC GTHE4_CHANNEL_X0Y4 [get_cells -quiet -hier -filter {REF_NAME == GTHE4_CHANNEL && NAME =~ *gt_sfp_10g*channel_inst[0]*}]
+set_property LOC GTHE4_CHANNEL_X0Y5 [get_cells -quiet -hier -filter {REF_NAME == GTHE4_CHANNEL && NAME =~ *gt_sfp_10g*channel_inst[1]*}]
 
 # L4 wrap only (empty on default system_top)
 set_false_path -from [get_cells -quiet -hier -filter {NAME =~ *u_gt/g_gt*}]

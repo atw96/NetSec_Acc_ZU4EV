@@ -192,9 +192,49 @@ vivado -mode batch -source scripts/hw_ibert_test.tcl
 
 默认 `system_top_rxdly.bit` 不含 GT；`nsec_l4_test` 读 `0x60` SFP_STATUS（stub 时为 LOS 位）。含 GT 的图：`scripts/build_sfp.tcl` → `system_top_sfp.bit`（2026-09-15 WNS **+18.336 ns**）。`scripts/hw_l4_sfp.tcl` 烧 SFP 图后保持数秒并**自动烧回 rxdly**。
 
-无光模块时不要用 PCS 光口环回当主路径。光口外环回需要 **1× 1.25G SFP（1000BASE-SX/LX）+ LC 环回跳线** 插在 SFP1；脚本 `scripts/hw_ibert_optical.tcl`（IBERT `LOOPBACK=None`）。
+无光模块时不要用 PCS 光口环回当主路径。
 
-**2026-09-16 实测**：`LOOPBACK=None`，`LOGIC.LINK=0`，`RX_BER=0.575`。结论 **NEED_HW**（笼内无模块），不是 RTL 失败。有模块后再跑同一脚本，期望 LINK=1。测完脚本会烧回 rxdly。
+### L4 — 10G 双光口光纤互环（当前权威路径）
+
+板上 Bank224 晶振是 **SiT9121 125.000 MHz**（V6/V5）。**不要**把 `mgtrefclk` 约束成 156.25 MHz。156.25 MHz 是 10GBASE-R 的 GT 用户时钟（`10.3125 Gbps / 66`），由 QPLL0 从 125 MHz 合成。
+
+光纤：SFP1 TX↔SFP2 RX、SFP2 TX↔SFP1 RX。
+
+**阶段 A — IBERT 10.0G PHY**
+
+Vivado 2020.1 的 IBERT **和** GT Wizard 都不能把 **10.3125G 与正好 125 MHz** 配在一起（10.3125/125=82.5）。阶段 A 用 **10.0 Gbps + 125 MHz**（整数倍）证明模块+光纤。阶段 B 的 Wizard 声明 refclk=125.7621951（最近合法值），板上晶振仍是 125.000 MHz，互环两端同频，串行约 10.25G；PCS 仍按 10GBASE-R 64b/66b。XDC 的 `create_clock` 保持 8.000 ns。
+
+```bat
+vivado -mode batch -source scripts/create_ibert.tcl
+vivado -mode batch -source scripts/build_ibert.tcl
+vivado -mode batch -source scripts/hw_ibert_optical_10g.tcl
+```
+
+`hw_ibert_optical_10g.tcl` 烧 `system_top_ibert.bit`，X0Y4/X0Y5，`LOOPBACK=None`，PRBS31。通过：两路 `LOGIC.LINK=1`。测完烧回 rxdly。
+
+**阶段 B — 10GBASE-R 以太网互环**
+
+```bat
+vivado -mode batch -source scripts/build_sfp10g.tcl
+vivado -mode batch -source scripts/hw_sfp10g.tcl
+```
+
+`system_top_sfp10g.bit` 独立 top，不改默认铜口图。jtag_axi @ `0x80050000`：
+
+| Offset | 名称 | 说明 |
+|--------|------|------|
+| 0x00 | CTRL | `[0]` tx_enable（默认 1）`[1]` soft_reset |
+| 0x04 | STATUS | `[0]` por `[1]` gt_tx_done `[2]` gt_rx_done `[3]` sfp1_los `[4]` sfp2_los `[8]` block_lock0 `[9]` block_lock1 |
+| 0x10 / 0x14 / 0x18 | CNT_TX0 / RX0 / BAD0 | 口 0（SFP1 / X0Y4） |
+| 0x20 / 0x24 / 0x28 | CNT_TX1 / RX1 / BAD1 | 口 1（SFP2 / X0Y5） |
+
+通过：两口 `block_lock=1`，`CNT_RX` 随对端 `CNT_TX` 增长。不以 LED 为判据。
+
+旧 1.25G 单口 IBERT 外环（`hw_ibert_optical.tcl`）保留作历史；10G 单速率模块在 1.25G 上经常不锁。
+
+**2026-09-24 实测（10G 业务图）**：`hw_sfp10g.tcl` **PASS**。STATUS=`0x2F07`（双口 lock、LOS=0），3 s 内两口 RX 从约 `0xBF1DE` 涨到 `0xF78D6`。IBERT 10.0G 图当时未拉 `sfp_tx_dis`，LINK=0。数字见 `bringup_log.md`。
+
+**2026-09-16 实测（1.25G、无模块）**：`LOOPBACK=None`，`LOGIC.LINK=0`，`RX_BER=0.575`。结论当时是 NEED_HW。
 
 ## 推荐顺序
 

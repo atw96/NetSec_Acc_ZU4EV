@@ -61,13 +61,16 @@ proc nsec_axi {} {
 
 proc nsec_txn_data {txn} {
     set obj [get_hw_axi_txns $txn]
-    foreach p {DATA OUTPUT.VALUE OUTPUT_VALUE READ_DATA} {
+    # DATA is the write payload; on reads it is stale. Prefer the read value.
+    foreach p {OUTPUT.VALUE OUTPUT_VALUE READ_DATA} {
         if {[lsearch -exact [list_property $obj] $p] >= 0} {
             set v [get_property $p $obj]
             if {$v ne ""} { return $v }
         }
     }
-    set rpt [report_hw_axi_txn -quiet -return_string $txn]
+    set rpt ""
+    catch {set rpt [report_hw_axi_txn $txn]}
+    if {[regexp {READ DATA is: ([0-9A-Fa-f]+)} $rpt -> m]} { return $m }
     if {[regexp {([0-9A-Fa-f]{8})} $rpt m]} { return $m }
     return "XXXXXXXX"
 }
@@ -85,7 +88,9 @@ proc nsec_rd {off} {
     set txn nsec_r_[clock clicks]
     create_hw_axi_txn $txn [nsec_axi] -type read -address $addr -len 1
     run_hw_axi $txn
-    set data [nsec_txn_data $txn]
+    set obj [get_hw_axi_txns $txn]
+    set data [get_property DATA $obj]
+    if {$data eq ""} { set data [nsec_txn_data $txn] }
     delete_hw_axi_txn $txn
     return "0x$data"
 }

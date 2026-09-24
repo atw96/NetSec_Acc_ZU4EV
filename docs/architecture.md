@@ -52,8 +52,8 @@
 - **网口1（RJ45）**：挂 **PS GEM3**（`MIO64..77`），本工程已启用，供 L3 双口自环（网线直连网口1↔网口2）。
 - **网口2（RJ45）**：挂 **PL Bank66 RGMII** ↔ JL2121 PHY（全部引脚见 `eth.xdc` / `board_pinout.md`）。  
   本工程使用开源 MIT `verilog-ethernet` 1G RGMII MAC（**不使用需付费 license 的 TEMAC**）。
-- **2× SFP+**：GTH Bank224 Lane0/1（SFP1=`X0Y4`，SFP2=`X0Y5`），参考时钟 125 MHz `V6/V5`。  
-  近端 PMA 已过；光口外环回需要 1× 1.25G SFP + LC 跳线，见 `docs/selftest_loopback.md`。
+- **2× SFP+**：GTH Bank224 Lane0/1（SFP1=`X0Y4`，SFP2=`X0Y5`），参考时钟 **125 MHz** `V6/V5`（SiT9121，不是 156.25 MHz 晶振）。  
+  10GBASE-R 互环是**独立 bitstream**（`system_top_sfp10g.bit` / IBERT 10.0G），**未**并进默认 NetSec 铜口数据面。见 `docs/selftest_loopback.md`。
 - **单 PL 网口约束**：无法做双口穿透，数据面以 **单口环回转发**（FORWARD 回发 / DROP / MIRROR）形态验证。
 
 旧模板 `constraints/axu4ev_template.xdc` **已废弃**（含占位符与错误描述）。
@@ -88,7 +88,7 @@
 | MAC/PCS | ✅ 开源 MIT `verilog-ethernet` RGMII MAC 已封装；SFP PCS 保留通道（`NETSEC_ENABLE_SFP=0` 时 stub） | 综合/比特流已出；PHY 时序见 L2 自测 |
 | 报文级 UVM 验证环境 | ✅ QuestaSim 2020.4 本机 `vlog` + smoke `run -all`（0 ERROR） | `tb/uvm_env/QUESTA_STATUS.md` |
 | Vivado 综合时序/资源报告 | ✅ 已生成 | LUT 22195 (25.27%) / FF 33818 / BRAM 7.5 / DSP 4；**WNS +0.832 ns**；`docs/timing_report/` |
-| 板级环回/上板验证 | ✅ 以 `docs/bringup_log.md` 实测栏为准 | L0(AC)/L3/PC/DPI/AES-DP/CSUM/MODEXP/IBERT 近端已填；光口外环回缺模块 |
+| 板级环回/上板验证 | ✅ 以 `docs/bringup_log.md` 实测栏为准 | L0(AC)/L3/PC/DPI/AES-DP/CSUM/MODEXP/IBERT 近端已填；10G 光纤互环 2026-09-24 lock+RX **PASS**（独立 bitstream） |
 
 ### 资源映射核对（`flow_table` / 帧缓存）
 
