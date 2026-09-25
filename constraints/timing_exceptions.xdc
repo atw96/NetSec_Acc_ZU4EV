@@ -37,6 +37,14 @@ set_clock_groups -asynchronous \
     -group [get_clocks -quiet gtx_clk_u] \
     -group [get_clocks -quiet rgmii_rxc]
 
+# IDDR samples on MMCM 67.5° (rxc60), not on the pad edge.
+# Setup vs rgmii_rxc stays checked. Hold is the IDELAY tap + phase, not this edge.
+set_false_path -hold -from [get_ports {rgmii_rd[*] rgmii_rx_ctl}] -to [get_clocks -quiet rxc60_u]
+
+# US+ IDELAYCTRL REFCLK max period is 3.333 ns. This board clocks it at 200 MHz
+# (VAR_LOAD taps tuned at that rate). Waive the period check on that primitive.
+set_disable_timing [get_cells -quiet -hier -filter {REF_NAME == IDELAYCTRL || ORIG_REF_NAME == IDELAYCTRL}]
+
 set_clock_groups -asynchronous \
     -group [get_clocks -quiet -of_objects [get_pins -quiet -hier *u_axi_div/O]] \
     -group [get_clocks -quiet rgmii_rxc]
@@ -49,8 +57,26 @@ set_clock_groups -asynchronous \
     -group [get_clocks -quiet gtx_clk_u] \
     -group [get_clocks -quiet sys_clk_clk_p]
 
+# Detection domain vs 10G GT user clocks
+set_clock_groups -asynchronous \
+    -group [get_clocks -quiet gtx_clk_u] \
+    -group [get_clocks -quiet tx_clk] \
+    -group [get_clocks -quiet -of_objects [get_pins -quiet -hier *u_tx_mac_clk/O]]
+set_clock_groups -asynchronous \
+    -group [get_clocks -quiet gtx_clk_u] \
+    -group [get_clocks -quiet rx_clk] \
+    -group [get_clocks -quiet -of_objects [get_pins -quiet -hier *u_rx_mac_clk0/O]] \
+    -group [get_clocks -quiet -of_objects [get_pins -quiet -hier *u_rx_mac_clk1/O]]
+
 # 10G GT user clocks (tx_clk/rx_clk ~161 MHz from TXOUTCLK/RXOUTCLK) vs AXI / 50M / sys / refclk
 # Pin-based get_clocks often misses the generated names; also group by clock name.
+set_clock_groups -asynchronous \
+    -group [get_clocks -quiet -of_objects [get_pins -quiet -hier *u_div50/O]] \
+    -group [get_clocks -quiet -of_objects [get_pins -quiet -hier *u_tx_mac_clk/O]]
+set_clock_groups -asynchronous \
+    -group [get_clocks -quiet -of_objects [get_pins -quiet -hier *u_div50/O]] \
+    -group [get_clocks -quiet -of_objects [get_pins -quiet -hier *u_rx_mac_clk0/O]] \
+    -group [get_clocks -quiet -of_objects [get_pins -quiet -hier *u_rx_mac_clk1/O]]
 set_clock_groups -asynchronous \
     -group [get_clocks -quiet clk_50m] \
     -group [get_clocks -quiet tx_clk] \

@@ -7,6 +7,8 @@ bitstream_output/*.bin
 .Xil/
 *.jou
 *.log
+hw_server_*.err
+hw_server_*.log
 vivado_project/
 vivado_proj/
 vivado_proj_ibert/

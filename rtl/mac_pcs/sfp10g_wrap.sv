@@ -29,12 +29,48 @@ module sfp10g_pulse_cdc (
     assign dst_pulse = sync ^ sync_d;
 endmodule
 
-module sfp10g_wrap (
+module sfp10g_wrap #(
+    parameter bit IGNORE_RX_RESET_REQ = 1'b1
+) (
     input  logic        freerun_clk,
     input  logic        axi_clk,
     input  logic        rst_n,
     input  logic        tx_enable,
     input  logic        nearend_loopback,
+    input  logic [1:0]  tx_src,
+
+    output logic        tx_clk,
+    output logic        rx_clk0,
+    output logic        rx_clk1,
+    output logic        rst_tx_n,
+    output logic        rst_rx0_n,
+    output logic        rst_rx1_n,
+
+    input  logic [63:0] tx0_axis_tdata,
+    input  logic [7:0]  tx0_axis_tkeep,
+    input  logic        tx0_axis_tvalid,
+    output logic        tx0_axis_tready,
+    input  logic        tx0_axis_tlast,
+    input  logic        tx0_axis_tuser,
+    output logic [63:0] rx0_axis_tdata,
+    output logic [7:0]  rx0_axis_tkeep,
+    output logic        rx0_axis_tvalid,
+    input  logic        rx0_axis_tready,
+    output logic        rx0_axis_tlast,
+    output logic        rx0_axis_tuser,
+
+    input  logic [63:0] tx1_axis_tdata,
+    input  logic [7:0]  tx1_axis_tkeep,
+    input  logic        tx1_axis_tvalid,
+    output logic        tx1_axis_tready,
+    input  logic        tx1_axis_tlast,
+    input  logic        tx1_axis_tuser,
+    output logic [63:0] rx1_axis_tdata,
+    output logic [7:0]  rx1_axis_tkeep,
+    output logic        rx1_axis_tvalid,
+    input  logic        rx1_axis_tready,
+    output logic        rx1_axis_tlast,
+    output logic        rx1_axis_tuser,
 
     input  logic        mgtrefclk_p,
     input  logic        mgtrefclk_n,
@@ -79,7 +115,6 @@ module sfp10g_wrap (
     );
 
     logic        tx_clk_gt, rx_clk_gt;
-    logic        tx_clk, rx_clk0, rx_clk1;
     logic        tx_active, rx_active;
     logic        reset_tx_done, reset_rx_done;
     logic [127:0] tx_data, rx_data;
@@ -122,7 +157,6 @@ module sfp10g_wrap (
     BUFGCE u_rx_mac_clk1 (.I(rx_clk_gt), .CE(rx_v1_q), .O(rx_clk1));
 
     logic rst_tx, rst_rx0, rst_rx1;
-    logic rst_tx_n, rst_rx0_n, rst_rx1_n;
     u_reset_sync u_rst_tx  (.clk(tx_clk),  .async_rst_n(rst_n & reset_tx_done), .sync_rst_n(rst_tx_n));
     u_reset_sync u_rst_rx0 (.clk(rx_clk0), .async_rst_n(rst_n & reset_rx_done), .sync_rst_n(rst_rx0_n));
     u_reset_sync u_rst_rx1 (.clk(rx_clk1), .async_rst_n(rst_n & reset_rx_done), .sync_rst_n(rst_rx1_n));
@@ -141,6 +175,12 @@ module sfp10g_wrap (
         end
     end
 
+    logic [63:0] gen_tdata  [1:0];
+    logic [7:0]  gen_tkeep  [1:0];
+    logic        gen_tvalid [1:0];
+    logic        gen_tready [1:0];
+    logic        gen_tlast  [1:0];
+    logic        gen_tuser  [1:0];
     logic [63:0] axis_tdata  [1:0];
     logic [7:0]  axis_tkeep  [1:0];
     logic        axis_tvalid [1:0];
@@ -150,6 +190,7 @@ module sfp10g_wrap (
     logic        pulse_tx    [1:0];
 
     logic [63:0] rx_tdata  [1:0];
+    logic [7:0]  rx_tkeep  [1:0];
     logic        rx_tvalid [1:0];
     logic        rx_tlast  [1:0];
     logic        rx_tuser  [1:0];
@@ -160,19 +201,46 @@ module sfp10g_wrap (
     logic        hber[1:0];
 
     pkt_gen_10g #(.PORT_ID(8'h01)) u_gen0 (
-        .clk(tx_clk), .rst(rst_tx), .enable(tx_en_sync[0] & tx_active),
-        .m_tdata(axis_tdata[0]), .m_tkeep(axis_tkeep[0]),
-        .m_tvalid(axis_tvalid[0]), .m_tready(axis_tready[0]),
-        .m_tlast(axis_tlast[0]), .m_tuser(axis_tuser[0]),
+        .clk(tx_clk), .rst(rst_tx), .enable(tx_en_sync[0] & tx_active & ~tx_src[0]),
+        .m_tdata(gen_tdata[0]), .m_tkeep(gen_tkeep[0]),
+        .m_tvalid(gen_tvalid[0]), .m_tready(gen_tready[0]),
+        .m_tlast(gen_tlast[0]), .m_tuser(gen_tuser[0]),
         .pulse_tx(pulse_tx[0])
     );
     pkt_gen_10g #(.PORT_ID(8'h02)) u_gen1 (
-        .clk(tx_clk), .rst(rst_tx), .enable(tx_en_sync[1] & tx_active),
-        .m_tdata(axis_tdata[1]), .m_tkeep(axis_tkeep[1]),
-        .m_tvalid(axis_tvalid[1]), .m_tready(axis_tready[1]),
-        .m_tlast(axis_tlast[1]), .m_tuser(axis_tuser[1]),
+        .clk(tx_clk), .rst(rst_tx), .enable(tx_en_sync[1] & tx_active & ~tx_src[1]),
+        .m_tdata(gen_tdata[1]), .m_tkeep(gen_tkeep[1]),
+        .m_tvalid(gen_tvalid[1]), .m_tready(gen_tready[1]),
+        .m_tlast(gen_tlast[1]), .m_tuser(gen_tuser[1]),
         .pulse_tx(pulse_tx[1])
     );
+
+    assign axis_tdata[0]  = tx_src[0] ? tx0_axis_tdata  : gen_tdata[0];
+    assign axis_tkeep[0]  = tx_src[0] ? tx0_axis_tkeep  : gen_tkeep[0];
+    assign axis_tvalid[0] = tx_src[0] ? tx0_axis_tvalid : gen_tvalid[0];
+    assign axis_tlast[0]  = tx_src[0] ? tx0_axis_tlast  : gen_tlast[0];
+    assign axis_tuser[0]  = tx_src[0] ? tx0_axis_tuser  : gen_tuser[0];
+    assign gen_tready[0]  = tx_src[0] ? 1'b0 : axis_tready[0];
+    assign tx0_axis_tready = tx_src[0] ? axis_tready[0] : 1'b0;
+
+    assign axis_tdata[1]  = tx_src[1] ? tx1_axis_tdata  : gen_tdata[1];
+    assign axis_tkeep[1]  = tx_src[1] ? tx1_axis_tkeep  : gen_tkeep[1];
+    assign axis_tvalid[1] = tx_src[1] ? tx1_axis_tvalid : gen_tvalid[1];
+    assign axis_tlast[1]  = tx_src[1] ? tx1_axis_tlast  : gen_tlast[1];
+    assign axis_tuser[1]  = tx_src[1] ? tx1_axis_tuser  : gen_tuser[1];
+    assign gen_tready[1]  = tx_src[1] ? 1'b0 : axis_tready[1];
+    assign tx1_axis_tready = tx_src[1] ? axis_tready[1] : 1'b0;
+
+    assign rx0_axis_tdata  = rx_tdata[0];
+    assign rx0_axis_tkeep  = rx_tkeep[0];
+    assign rx0_axis_tvalid = rx_tvalid[0];
+    assign rx0_axis_tlast  = rx_tlast[0];
+    assign rx0_axis_tuser  = rx_tuser[0];
+    assign rx1_axis_tdata  = rx_tdata[1];
+    assign rx1_axis_tkeep  = rx_tkeep[1];
+    assign rx1_axis_tvalid = rx_tvalid[1];
+    assign rx1_axis_tlast  = rx_tlast[1];
+    assign rx1_axis_tuser  = rx_tuser[1];
 
     genvar gi;
     generate
@@ -208,7 +276,7 @@ module sfp10g_wrap (
                 .tx_axis_tlast(axis_tlast[gi]),
                 .tx_axis_tuser(axis_tuser[gi]),
                 .rx_axis_tdata(rx_tdata[gi]),
-                .rx_axis_tkeep(),
+                .rx_axis_tkeep(rx_tkeep[gi]),
                 .rx_axis_tvalid(rx_tvalid[gi]),
                 .rx_axis_tlast(rx_tlast[gi]),
                 .rx_axis_tuser(rx_tuser[gi]),
@@ -263,7 +331,7 @@ module sfp10g_wrap (
         if (!rst_n) begin
             rx_dp_reset <= 1'b0;
             slip_hold   <= 8'd0;
-        end else if (|rx_reset_req) begin
+        end else if (|rx_reset_req && !IGNORE_RX_RESET_REQ) begin
             rx_dp_reset <= 1'b1;
             slip_hold   <= 8'd16;
         end else if (slip_hold != 8'd0) begin
@@ -315,7 +383,7 @@ module sfp10g_wrap (
         .dst_clk(axi_clk), .dst_rst_n(rst_n), .dst_pulse(pulse_bad1_axi));
 
     logic _los_keep;
-    assign _los_keep = sfp1_los ^ sfp2_los;
+    assign _los_keep = sfp1_los ^ sfp2_los ^ rx0_axis_tready ^ rx1_axis_tready;
 
     gt_sfp_10g u_gt (
         .gtwiz_userclk_tx_reset_in         (~rst_n),

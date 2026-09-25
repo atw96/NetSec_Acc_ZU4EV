@@ -190,7 +190,7 @@ vivado -mode batch -source scripts/hw_ibert_test.tcl
 
 `hw_ibert_test.tcl` 烧 `bitstream_output/system_top_ibert.bit`，近端 PMA + PRBS 7-bit，打印 `LOGIC.LINK` / `RX_BER`。
 
-默认 `system_top_rxdly.bit` 不含 GT；`nsec_l4_test` 读 `0x60` SFP_STATUS（stub 时为 LOS 位）。含 GT 的图：`scripts/build_sfp.tcl` → `system_top_sfp.bit`（2026-09-15 WNS **+18.336 ns**）。`scripts/hw_l4_sfp.tcl` 烧 SFP 图后保持数秒并**自动烧回 rxdly**。
+默认 `system_top` 含双口 10G；`nsec_l4_test` / `nsec_sfp10g_check` 读 `0xC0`。历史 1G PRBS 图：`scripts/build_sfp.tcl` → `system_top_sfp.bit`（与 10G 互斥，勿同时例化）。`scripts/hw_l4_sfp.tcl` 烧 1G SFP 图后保持数秒并**自动烧回 rxdly**。
 
 无光模块时不要用 PCS 光口环回当主路径。
 
@@ -212,31 +212,52 @@ vivado -mode batch -source scripts/hw_ibert_optical_10g.tcl
 
 `hw_ibert_optical_10g.tcl` 烧 `system_top_ibert.bit`，X0Y4/X0Y5，`LOOPBACK=None`，PRBS31。通过：两路 `LOGIC.LINK=1`。测完烧回 rxdly。
 
-**阶段 B — 10GBASE-R 以太网互环**
+**阶段 B — 10GBASE-R 以太网互环（默认大工程图）**
 
-```bat
-vivado -mode batch -source scripts/build_sfp10g.tcl
-vivado -mode batch -source scripts/hw_sfp10g.tcl
+`scripts/build.tcl` 的 `system_top` 已例化 `sfp10g_wrap`（与铜口 RGMII / DPI 同一张图）。jtag_axi 仍是 `0x80050000`，10G 占用 `0xC0`–`0xDC`，不覆盖 L0–L3 的 `0x00`/`0x04`/`0x10`。
+
+```tcl
+source scripts/hw_jtag.tcl
+nsec_connect
+nsec_program
+nsec_sfp10g_check
 ```
-
-`system_top_sfp10g.bit` 独立 top，不改默认铜口图。jtag_axi @ `0x80050000`：
 
 | Offset | 名称 | 说明 |
 |--------|------|------|
-| 0x00 | CTRL | `[0]` tx_enable（默认 1）`[1]` soft_reset |
-| 0x04 | STATUS | `[0]` por `[1]` gt_tx_done `[2]` gt_rx_done `[3]` sfp1_los `[4]` sfp2_los `[8]` block_lock0 `[9]` block_lock1 |
-| 0x10 / 0x14 / 0x18 | CNT_TX0 / RX0 / BAD0 | 口 0（SFP1 / X0Y4） |
-| 0x20 / 0x24 / 0x28 | CNT_TX1 / RX1 / BAD1 | 口 1（SFP2 / X0Y5） |
+| 0xC0 | SFP10G_ST | `[1]` gt_tx_done `[2]` gt_rx_done `[3]` sfp1_los `[4]` sfp2_los `[8]` block_lock0 `[9]` block_lock1 |
+| 0xC4 / 0xC8 / 0xCC | CNT_TX0 / RX0 / BAD0 | 口 0（SFP1 / X0Y4） |
+| 0xD0 / 0xD4 / 0xD8 | CNT_TX1 / RX1 / BAD1 | 口 1（SFP2 / X0Y5） |
+| 0xDC | SFP10G_CTRL | `[0]` tx_enable（默认 1） |
 
 通过：两口 `block_lock=1`，`CNT_RX` 随对端 `CNT_TX` 增长。不以 LED 为判据。
 
+隔离调试仍可用 `build_sfp10g.tcl` + `hw_sfp10g.tcl`（独立 top，计数在 `0x04`/`0x10`）。
+
 旧 1.25G 单口 IBERT 外环（`hw_ibert_optical.tcl`）保留作历史；10G 单速率模块在 1.25G 上经常不锁。
 
-**2026-09-24 实测（10G 业务图）**：`hw_sfp10g.tcl` **PASS**。STATUS=`0x2F07`（双口 lock、LOS=0），3 s 内两口 RX 从约 `0xBF1DE` 涨到 `0xF78D6`。IBERT 10.0G 图当时未拉 `sfp_tx_dis`，LINK=0。数字见 `bringup_log.md`。
+**2026-09-24 实测（隔离 10G 图）**：`hw_sfp10g.tcl` **PASS**。STATUS=`0x2F07`（双口 lock、LOS=0），3 s 内两口 RX 从约 `0xBF1DE` 涨到 `0xF78D6`。该通路现已并入默认 `system_top`（读 `0xC0`）。IBERT 10.0G 图当时未拉 `sfp_tx_dis`，LINK=0。数字见 `bringup_log.md`。
 
 **2026-09-16 实测（1.25G、无模块）**：`LOOPBACK=None`，`LOGIC.LINK=0`，`RX_BER=0.575`。结论当时是 NEED_HW。
 
 ## 推荐顺序
 
-`B0 读 STATUS → L0 → L1 → MDIO ID → L2 → L3 → L4`。  
+### L5 — 10G 检测通路（INLINE）
+
+默认 `system_top` 已含 2× `netsec_datapath`（`0x100`）。默认 mode=BIST，L4/`nsec_sfp10g_check` 不变。
+
+```tcl
+nsec_sfp10g_check
+nsec_l5_test
+```
+
+| 检查 | 期望 | 2026-09-25 实测 | 通过 |
+|------|------|-----------------|------|
+| L5a | `0xC0` 双口 lock，`0xC8`/`0xD4` 增长（BIST） | 11:51 `0xC0=0x2F07`；RX0 `0x11b10c→0x1535a0` RX1 `0x11acdc→0x1531d6` | **是** |
+| L5b | `nsec_wr 0x100 0x5` 后 `0x108`/`0x120` 与 `0x11C`/`0x134` DPI 随光纤互环增长 | CTRL=0x5；datapath 计数全 0；BADRX `0x12a31c`/`0x1291bd` | **部分** |
+| L5c | 无仪表时片上注帧：`nsec_wr 0x100 0x45`，`0x108`/`0x11C` 涨 | 13:21 RX0=2 DPI0=1 MIR0=1 FWD0=1 | **是** |
+
+G5：默认 `IGNORE_RX_RESET_REQ=1`，避免 `ber_mon` 在 ~10.25G 实速率下反复 RX 复位（H1）。
+
+`B0 读 STATUS → L0 → L1 → MDIO ID → L2 → L3 → L4 → L5`。  
 实测数字写入 [`bringup_log.md`](bringup_log.md) 后，才允许在 README 将该级标为通过。

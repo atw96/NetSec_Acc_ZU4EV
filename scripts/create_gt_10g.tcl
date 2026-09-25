@@ -74,4 +74,4 @@ foreach f $extras {
 }
 
 puts "INFO: gt_sfp_10g generated (10.3125G / Wizard refclk 125.7621951; crystal 125.000)."
-puts "INFO: Build with scripts/build_sfp10g.tcl"
+puts "INFO: Default system_top build.tcl instantiates this IP. Optional isolated image: scripts/build_sfp10g.tcl"

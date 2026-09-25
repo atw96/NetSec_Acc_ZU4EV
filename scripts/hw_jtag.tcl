@@ -121,6 +121,65 @@ proc nsec_dump {} {
     puts "MX_RES   [nsec_rd 0xA4]"
     puts "AES_DP0  [nsec_rd 0xB0]"
     puts "AES_DP3  [nsec_rd 0xBC]"
+    puts "SFP10G_ST [nsec_rd 0xC0]"
+    puts "SFP10G_TX0 [nsec_rd 0xC4]"
+    puts "SFP10G_RX0 [nsec_rd 0xC8]"
+    puts "SFP10G_BD0 [nsec_rd 0xCC]"
+    puts "SFP10G_TX1 [nsec_rd 0xD0]"
+    puts "SFP10G_RX1 [nsec_rd 0xD4]"
+    puts "SFP10G_BD1 [nsec_rd 0xD8]"
+    puts "SFP10G_CTRL [nsec_rd 0xDC]"
+}
+
+proc nsec_sfp10g_dump {} {
+    puts "SFP10G_ST   [nsec_rd 0xC0]"
+    puts "SFP10G_TX0  [nsec_rd 0xC4]"
+    puts "SFP10G_RX0  [nsec_rd 0xC8]"
+    puts "SFP10G_BAD0 [nsec_rd 0xCC]"
+    puts "SFP10G_TX1  [nsec_rd 0xD0]"
+    puts "SFP10G_RX1  [nsec_rd 0xD4]"
+    puts "SFP10G_BAD1 [nsec_rd 0xD8]"
+    puts "SFP10G_CTRL [nsec_rd 0xDC]"
+}
+
+# Default system_top image: 10G counters at 0xC0 (not the standalone 0x04/0x10 map).
+proc nsec_sfp10g_check {} {
+    nsec_wr 0xDC 0x1
+    after 2000
+    set st  [nsec_rd 0xC0]
+    set tx0 [nsec_rd 0xC4]
+    set rx0 [nsec_rd 0xC8]
+    set bd0 [nsec_rd 0xCC]
+    set tx1 [nsec_rd 0xD0]
+    set rx1 [nsec_rd 0xD4]
+    set bd1 [nsec_rd 0xD8]
+    puts "SFP10G t0 ST=$st TX0=$tx0 RX0=$rx0 BAD0=$bd0 TX1=$tx1 RX1=$rx1 BAD1=$bd1"
+    after 3000
+    set st2  [nsec_rd 0xC0]
+    set tx0b [nsec_rd 0xC4]
+    set rx0b [nsec_rd 0xC8]
+    set bd0b [nsec_rd 0xCC]
+    set tx1b [nsec_rd 0xD0]
+    set rx1b [nsec_rd 0xD4]
+    set bd1b [nsec_rd 0xD8]
+    puts "SFP10G t1 ST=$st2 TX0=$tx0b RX0=$rx0b BAD0=$bd0b TX1=$tx1b RX1=$rx1b BAD1=$bd1b"
+    set stn 0
+    set rx0n 0
+    set rx1n 0
+    set rx0g 0
+    set rx1g 0
+    catch {set stn  [expr {$st2}]}
+    catch {set rx0n [expr {$rx0b}]}
+    catch {set rx1n [expr {$rx1b}]}
+    catch {set rx0g [expr {$rx0b - $rx0}]}
+    catch {set rx1g [expr {$rx1b - $rx1}]}
+    set lock0 [expr {($stn >> 8) & 1}]
+    set lock1 [expr {($stn >> 9) & 1}]
+    if {$lock0 && $lock1 && $rx0n > 0 && $rx1n > 0 && $rx0g > 0 && $rx1g > 0} {
+        puts "PASS: 10G on default system_top (block_lock + RX growing)"
+    } else {
+        puts "NEED_HW: expect 0xC0 bit8/bit9=1 and 0xC8/0xD4 growing (fiber SFP1<->SFP2)."
+    }
 }
 
 proc nsec_mdio_read {reg {phy 1}} {
@@ -216,12 +275,14 @@ proc nsec_l3_monitor {} {
 }
 
 proc nsec_l4_test {} {
-    nsec_wr 0x08 0x4
+    nsec_wr 0x08 0x0
     nsec_wr 0x00 0x1
+    nsec_wr 0xDC 0x1
     after 20
-    set st [nsec_rd 0x60]
+    set st [nsec_rd 0xC0]
+    nsec_sfp10g_dump
     nsec_dump
-    puts "L4: LOOPBACK=4 SFP_STATUS=$st (bit0 nearend/enable; link in [1] when GT image)"
+    puts "L4: default image 10G fiber (LOOPBACK=0). SFP10G_ST=$st bit8/9=block_lock. Near-end PMA is LOOPBACK=4."
 }
 
 proc nsec_wait_link {{tries 40}} {
@@ -316,4 +377,51 @@ proc nsec_aes_dp_test {} {
     nsec_dump
 }
 
-puts "INFO: hw_jtag.tcl loaded. nsec_connect / nsec_program / nsec_dump / nsec_l0_test"
+proc nsec_ns10g_dump {} {
+    puts "NS10G_CTRL [nsec_rd 0x100]"
+    puts "NS10G_ST   [nsec_rd 0x104]"
+    puts "N0_RX/TX/FWD/DROP/MIR/DPI [nsec_rd 0x108] [nsec_rd 0x10C] [nsec_rd 0x110] [nsec_rd 0x114] [nsec_rd 0x118] [nsec_rd 0x11C]"
+    puts "N1_RX/TX/FWD/DROP/MIR/DPI [nsec_rd 0x120] [nsec_rd 0x124] [nsec_rd 0x128] [nsec_rd 0x12C] [nsec_rd 0x130] [nsec_rd 0x134]"
+    puts "BADRX0/1 OVF0/1 CSUM0/1 [nsec_rd 0x140] [nsec_rd 0x144] [nsec_rd 0x148] [nsec_rd 0x14C] [nsec_rd 0x150] [nsec_rd 0x154]"
+}
+
+proc nsec_l5_test {} {
+    nsec_wr 0xDC 0x1
+    nsec_wr 0x100 0x5
+    nsec_wr 0x00 0x101
+    after 2000
+    nsec_sfp10g_dump
+    nsec_ns10g_dump
+    puts "L5: INLINE+dp_en. Expect 0xC0 lock and 0x108/0x120 growing if fiber is crossed."
+}
+
+# L5c without external 10G NIC: on-chip GET inject into DP_A (0x100[6] W1C).
+proc nsec_l5c_test {} {
+    nsec_wr 0xDC 0x1
+    nsec_wr 0x00 0x3
+    after 5
+    nsec_wr 0x100 0x5
+    after 10
+    set rx0a [nsec_rd 0x108]
+    set dpi0a [nsec_rd 0x11C]
+    set mir0a [nsec_rd 0x118]
+    nsec_wr 0x100 0x45
+    after 200
+    set rx0b [nsec_rd 0x108]
+    set dpi0b [nsec_rd 0x11C]
+    set mir0b [nsec_rd 0x118]
+    set fwd0b [nsec_rd 0x110]
+    puts "L5c t0 RX0=$rx0a DPI0=$dpi0a MIR0=$mir0a"
+    puts "L5c t1 RX0=$rx0b DPI0=$dpi0b MIR0=$mir0b FWD0=$fwd0b CTRL=[nsec_rd 0x100]"
+    set rxg 0
+    set dpig 0
+    catch {set rxg  [expr {$rx0b - $rx0a}]}
+    catch {set dpig [expr {$dpi0b - $dpi0a}]}
+    if {$rxg >= 1 && $dpig >= 1} {
+        puts "PASS: L5c on-chip GET inject (no external 10G NIC)"
+    } else {
+        puts "NEED_HW: L5c expect 0x108/0x11C grow after 0x100=0x45 (needs inj RTL image)"
+    }
+}
+
+puts "INFO: hw_jtag.tcl loaded. nsec_connect / nsec_program / nsec_dump / nsec_l0_test / nsec_sfp10g_check / nsec_l5_test / nsec_l5c_test"

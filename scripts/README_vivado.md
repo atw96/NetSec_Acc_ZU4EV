@@ -27,8 +27,12 @@ vivado -mode batch -source scripts/build.tcl
 | `create_sfp_pcs.tcl` | 可选 1000BASE-X PCS/PMA |
 | `create_ibert.tcl` / `build_ibert.tcl` | IBERT @ **10.0G / 125 MHz**（X0Y4+X0Y5；IBERT 不能配 10.3125+125） |
 | `hw_ibert_optical_10g.tcl` | 双光口光纤外环 PRBS31，测完烧回 rxdly |
-| `create_gt_10g.tcl` / `build_sfp10g.tcl` | 双口 10GBASE-R MAC/PCS → `system_top_sfp10g.bit` |
-| `hw_sfp10g.tcl` | 10G 互环打流读计数，测完烧回 rxdly |
+| `create_gt_10g.tcl` | 双口 10G GT Wizard（`build.tcl` / `create_project.tcl` 默认会 source） |
+| `build.tcl` | 默认 `system_top`：铜口 + 双光口 10G |
+| `build_sfp10g.tcl` | 可选独立 top → `system_top_sfp10g.bit` |
+| `hw_sfp10g.tcl` | 独立图互环读计数；默认图用 `nsec_sfp10g_check` |
+| `hw_l5_bringup.tcl` | 默认图烧写 + L5a/L5b/L5c |
+| `hw_jtag.tcl` | `nsec_sfp10g_check` / `nsec_l5_test` / `nsec_l5c_test` |
 
 ## PS / DDR 注意
 

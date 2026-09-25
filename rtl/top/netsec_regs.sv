@@ -70,6 +70,50 @@ module netsec_regs (
     input  logic         sfp1_los,
     input  logic         sfp2_los,
     input  logic [15:0]  sfp_status,
+    output logic         sfp10g_tx_enable,
+    input  logic         sfp10g_tx_done,
+    input  logic         sfp10g_rx_done,
+    input  logic         sfp10g_lock0,
+    input  logic         sfp10g_lock1,
+    input  logic         sfp10g_rxst0,
+    input  logic         sfp10g_rxst1,
+    input  logic         sfp10g_hber0,
+    input  logic         sfp10g_hber1,
+    input  logic         pulse_sfp10g_tx0,
+    input  logic         pulse_sfp10g_rx0,
+    input  logic         pulse_sfp10g_bad0,
+    input  logic         pulse_sfp10g_tx1,
+    input  logic         pulse_sfp10g_rx1,
+    input  logic         pulse_sfp10g_bad1,
+    output logic [1:0]   ns10g_mode,
+    output logic [1:0]   ns10g_dp_en,
+    output logic         ns10g_aes0_en,
+    output logic         ns10g_aes1_en,
+    output logic         ns10g_inj,
+    input  logic [1:0]   ns10g_last0,
+    input  logic [1:0]   ns10g_last1,
+    input  logic         pulse_ns10g_rx0,
+    input  logic         pulse_ns10g_tx0,
+    input  logic         pulse_ns10g_fwd0,
+    input  logic         pulse_ns10g_drop0,
+    input  logic         pulse_ns10g_mir0,
+    input  logic         pulse_ns10g_dpi0,
+    input  logic         pulse_ns10g_rx1,
+    input  logic         pulse_ns10g_tx1,
+    input  logic         pulse_ns10g_fwd1,
+    input  logic         pulse_ns10g_drop1,
+    input  logic         pulse_ns10g_mir1,
+    input  logic         pulse_ns10g_dpi1,
+    input  logic         pulse_ns10g_badrx0,
+    input  logic         pulse_ns10g_badrx1,
+    input  logic         pulse_ns10g_ovf0,
+    input  logic         pulse_ns10g_ovf1,
+    input  logic         pulse_ns10g_csum0,
+    input  logic         pulse_ns10g_csum1,
+    input  logic         ns10g_aes0_done,
+    input  logic         ns10g_aes1_done,
+    input  logic [127:0] ns10g_aes0_ct,
+    input  logic [127:0] ns10g_aes1_ct,
     input  logic [1:0]   mac_speed,
     input  logic [1:0]   last_action,
 
@@ -89,6 +133,18 @@ module netsec_regs (
     // 0x00 CTRL        [0] enable [1] soft_reset [8] pkt_gen_start
     //                  [9] aes_start (W1C) [10] csum_start (W1C) [11] modexp_start (W1C)
     //                  [12] aes_dp_en（电平：FORWARD 帧偏移 42 起 16B 进 AES）
+    // 0x100 NS10G_CTRL [1:0] mode 0=BIST 1=INLINE 2=LOOP 3=DISABLE
+    //                  [3:2] dp_en1/0  [6] inj (W1C，片上 GET 注帧，L5c 无仪表)
+    //                  [9:8] aes_dp1/0
+    // 0x104 NS10G_ST   [1:0]/[3:2] last_action  [8]/[9] aes done  [16]/[17] csum sticky
+    // 0x108–0x11C port0 RX/TX/FWD/DROP/MIR/DPI
+    // 0x120–0x134 port1 same
+    // 0x140/144 BADRX  0x148/14C OVF  0x150/154 CSUM
+    // 0x158–0x16C AES0 CT  0x170–0x17C AES1 CT
+    // 0xDC SFP10G_CTRL [0] tx_enable (default 1; separate from 0x00 so L0–L3 writes stay intact)
+    // 0xC0 SFP10G_ST   same bits as standalone 0x04
+    // 0xC4/C8/CC       CNT_TX0 / RX0 / BAD0
+    // 0xD0/D4/D8       CNT_TX1 / RX1 / BAD1
     // 0x04 STATUS      [0] ready [1] mmcm [2] phy_link [3] sfp1_los [4] sfp2_los
     //                  [5] aes_done [6] csum_valid [7] modexp_done [10] aes_dp_done
     //                  [9:8] speed [17:16] last_action
@@ -109,7 +165,7 @@ module netsec_regs (
     // 0x54 MDIO_WDATA  [15:0]
     // 0x58 MDIO_RDATA  [15:0] data [16] busy [17] done_sticky
     // 0x5C RGMII_DLY   [8:0] tap [16] load
-    // 0x60 SFP_STATUS  [15:0] GT/PCS status_vector (LOS in stub)
+    // 0x60 SFP_STATUS  [15:0] GT/PCS or 10G lock/LOS vector
 
     logic [31:0] reg_ctrl;
     logic [31:0] reg_loopback;
@@ -128,6 +184,14 @@ module netsec_regs (
     logic [31:0] reg_mdio_wdata;
     logic [31:0] reg_rgmii_dly;
     logic        mdio_done_sticky;
+    logic [31:0] reg_sfp10g_ctrl;
+    logic [31:0] cnt_sfp10g_tx0, cnt_sfp10g_rx0, cnt_sfp10g_bad0;
+    logic [31:0] cnt_sfp10g_tx1, cnt_sfp10g_rx1, cnt_sfp10g_bad1;
+    logic [31:0] reg_ns10g_ctrl;
+    logic [31:0] cnt_n0_rx, cnt_n0_tx, cnt_n0_fwd, cnt_n0_drop, cnt_n0_mir, cnt_n0_dpi;
+    logic [31:0] cnt_n1_rx, cnt_n1_tx, cnt_n1_fwd, cnt_n1_drop, cnt_n1_mir, cnt_n1_dpi;
+    logic [31:0] cnt_n0_badrx, cnt_n1_badrx, cnt_n0_ovf, cnt_n1_ovf, cnt_n0_csum, cnt_n1_csum;
+    logic        ns10g_aes0_sticky, ns10g_aes1_sticky, ns10g_csum0_sticky, ns10g_csum1_sticky;
 
     assign ctrl_enable    = reg_ctrl[0];
     assign soft_reset     = reg_ctrl[1];
@@ -157,6 +221,12 @@ module netsec_regs (
     assign mdio_wdata    = reg_mdio_wdata[15:0];
     assign rgmii_dly_tap = reg_rgmii_dly[8:0];
     assign rgmii_dly_load = reg_rgmii_dly[16];
+    assign sfp10g_tx_enable = reg_sfp10g_ctrl[0];
+    assign ns10g_mode    = reg_ns10g_ctrl[1:0];
+    assign ns10g_dp_en   = reg_ns10g_ctrl[3:2];
+    assign ns10g_aes0_en = reg_ns10g_ctrl[8];
+    assign ns10g_aes1_en = reg_ns10g_ctrl[9];
+    assign ns10g_inj     = reg_ns10g_ctrl[6];
 
     logic aw_hs, w_hs, b_hs;
     logic [31:0] awaddr_r;
@@ -189,6 +259,8 @@ module netsec_regs (
             reg_mdio_wdata <= '0;
             reg_rgmii_dly  <= '0;
             mdio_done_sticky <= 1'b0;
+            reg_sfp10g_ctrl <= 32'h1;
+            reg_ns10g_ctrl  <= 32'hC; // BIST, both dp_en=1
         end else begin
             if (reg_ctrl[1])      reg_ctrl[1]      <= 1'b0;
             if (reg_ctrl[8])      reg_ctrl[8]      <= 1'b0;
@@ -199,6 +271,7 @@ module netsec_regs (
                 csum_dv_r   <= 1'b0;
                 csum_last_r <= 1'b0;
             end
+            if (reg_ns10g_ctrl[6]) reg_ns10g_ctrl[6] <= 1'b0;
             if (reg_mdio_ctrl[17]) reg_mdio_ctrl[17] <= 1'b0;
             if (reg_rgmii_dly[16]) reg_rgmii_dly[16] <= 1'b0;
             if (mdio_done)        mdio_done_sticky <= 1'b1;
@@ -222,36 +295,38 @@ module netsec_regs (
                 w_ok <= 1'b1;
 
             if (aw_ok && w_ok && !s_axi_bvalid) begin
-                unique case (awaddr_r[7:0])
-                    8'h00: reg_ctrl       <= s_axi_wdata;
-                    8'h08: reg_loopback   <= s_axi_wdata;
-                    8'h30: key_w0         <= s_axi_wdata;
-                    8'h34: key_w1         <= s_axi_wdata;
-                    8'h38: key_w2         <= s_axi_wdata;
-                    8'h3C: key_w3         <= s_axi_wdata;
-                    8'h70: pt_w0          <= s_axi_wdata;
-                    8'h74: pt_w1          <= s_axi_wdata;
-                    8'h78: pt_w2          <= s_axi_wdata;
-                    8'h7C: pt_w3          <= s_axi_wdata;
-                    8'h90: begin
+                unique case (awaddr_r[8:0])
+                    9'h000: reg_ctrl       <= s_axi_wdata;
+                    9'h008: reg_loopback   <= s_axi_wdata;
+                    9'h030: key_w0         <= s_axi_wdata;
+                    9'h034: key_w1         <= s_axi_wdata;
+                    9'h038: key_w2         <= s_axi_wdata;
+                    9'h03C: key_w3         <= s_axi_wdata;
+                    9'h070: pt_w0          <= s_axi_wdata;
+                    9'h074: pt_w1          <= s_axi_wdata;
+                    9'h078: pt_w2          <= s_axi_wdata;
+                    9'h07C: pt_w3          <= s_axi_wdata;
+                    9'h090: begin
                         csum_data_r <= s_axi_wdata[15:0];
                         csum_last_r <= s_axi_wdata[31];
                         csum_dv_r   <= 1'b1;
                     end
-                    8'h98: mx_base        <= s_axi_wdata;
-                    8'h9C: mx_exp         <= s_axi_wdata;
-                    8'hA0: mx_mod         <= s_axi_wdata;
-                    8'h40: pat0           <= s_axi_wdata;
-                    8'h44: pat1           <= s_axi_wdata;
-                    8'h48: pat2           <= s_axi_wdata;
-                    8'h4C: pat3           <= s_axi_wdata;
-                    8'h50: begin
+                    9'h098: mx_base        <= s_axi_wdata;
+                    9'h09C: mx_exp         <= s_axi_wdata;
+                    9'h0A0: mx_mod         <= s_axi_wdata;
+                    9'h040: pat0           <= s_axi_wdata;
+                    9'h044: pat1           <= s_axi_wdata;
+                    9'h048: pat2           <= s_axi_wdata;
+                    9'h04C: pat3           <= s_axi_wdata;
+                    9'h050: begin
                         reg_mdio_ctrl    <= s_axi_wdata;
                         if (s_axi_wdata[17])
                             mdio_done_sticky <= 1'b0;
                     end
-                    8'h54: reg_mdio_wdata <= s_axi_wdata;
-                    8'h5C: reg_rgmii_dly  <= s_axi_wdata;
+                    9'h054: reg_mdio_wdata <= s_axi_wdata;
+                    9'h05C: reg_rgmii_dly  <= s_axi_wdata;
+                    9'h0DC: reg_sfp10g_ctrl <= s_axi_wdata;
+                    9'h100: reg_ns10g_ctrl  <= s_axi_wdata;
                     default: ;
                 endcase
                 s_axi_bvalid <= 1'b1;
@@ -271,6 +346,17 @@ module netsec_regs (
             cnt_mac_rx_good <= '0; cnt_mac_rx_bad_fcs <= '0;
             cnt_mac_rx_bad_frame <= '0; cnt_mac_tx_good <= '0;
             cnt_rgmii_rx_act <= '0;
+            cnt_sfp10g_tx0 <= '0; cnt_sfp10g_rx0 <= '0; cnt_sfp10g_bad0 <= '0;
+            cnt_sfp10g_tx1 <= '0; cnt_sfp10g_rx1 <= '0; cnt_sfp10g_bad1 <= '0;
+            cnt_n0_rx <= '0; cnt_n0_tx <= '0; cnt_n0_fwd <= '0;
+            cnt_n0_drop <= '0; cnt_n0_mir <= '0; cnt_n0_dpi <= '0;
+            cnt_n1_rx <= '0; cnt_n1_tx <= '0; cnt_n1_fwd <= '0;
+            cnt_n1_drop <= '0; cnt_n1_mir <= '0; cnt_n1_dpi <= '0;
+            cnt_n0_badrx <= '0; cnt_n1_badrx <= '0;
+            cnt_n0_ovf <= '0; cnt_n1_ovf <= '0;
+            cnt_n0_csum <= '0; cnt_n1_csum <= '0;
+            ns10g_aes0_sticky <= 1'b0; ns10g_aes1_sticky <= 1'b0;
+            ns10g_csum0_sticky <= 1'b0; ns10g_csum1_sticky <= 1'b0;
             aes_done_sticky <= 1'b0;
             csum_valid_sticky <= 1'b0;
             modexp_done_sticky <= 1'b0;
@@ -288,6 +374,38 @@ module netsec_regs (
             if (pulse_mac_rx_bad_frame) cnt_mac_rx_bad_frame <= cnt_mac_rx_bad_frame + 1'b1;
             if (pulse_mac_tx_good)      cnt_mac_tx_good      <= cnt_mac_tx_good + 1'b1;
             if (pulse_rgmii_rx_act)     cnt_rgmii_rx_act     <= cnt_rgmii_rx_act + 1'b1;
+            if (pulse_sfp10g_tx0)  cnt_sfp10g_tx0  <= cnt_sfp10g_tx0  + 1'b1;
+            if (pulse_sfp10g_rx0)  cnt_sfp10g_rx0  <= cnt_sfp10g_rx0  + 1'b1;
+            if (pulse_sfp10g_bad0) cnt_sfp10g_bad0 <= cnt_sfp10g_bad0 + 1'b1;
+            if (pulse_sfp10g_tx1)  cnt_sfp10g_tx1  <= cnt_sfp10g_tx1  + 1'b1;
+            if (pulse_sfp10g_rx1)  cnt_sfp10g_rx1  <= cnt_sfp10g_rx1  + 1'b1;
+            if (pulse_sfp10g_bad1) cnt_sfp10g_bad1 <= cnt_sfp10g_bad1 + 1'b1;
+            if (pulse_ns10g_rx0)   cnt_n0_rx   <= cnt_n0_rx   + 1'b1;
+            if (pulse_ns10g_tx0)   cnt_n0_tx   <= cnt_n0_tx   + 1'b1;
+            if (pulse_ns10g_fwd0)  cnt_n0_fwd  <= cnt_n0_fwd  + 1'b1;
+            if (pulse_ns10g_drop0) cnt_n0_drop <= cnt_n0_drop + 1'b1;
+            if (pulse_ns10g_mir0)  cnt_n0_mir  <= cnt_n0_mir  + 1'b1;
+            if (pulse_ns10g_dpi0)  cnt_n0_dpi  <= cnt_n0_dpi  + 1'b1;
+            if (pulse_ns10g_rx1)   cnt_n1_rx   <= cnt_n1_rx   + 1'b1;
+            if (pulse_ns10g_tx1)   cnt_n1_tx   <= cnt_n1_tx   + 1'b1;
+            if (pulse_ns10g_fwd1)  cnt_n1_fwd  <= cnt_n1_fwd  + 1'b1;
+            if (pulse_ns10g_drop1) cnt_n1_drop <= cnt_n1_drop + 1'b1;
+            if (pulse_ns10g_mir1)  cnt_n1_mir  <= cnt_n1_mir  + 1'b1;
+            if (pulse_ns10g_dpi1)  cnt_n1_dpi  <= cnt_n1_dpi  + 1'b1;
+            if (pulse_ns10g_badrx0) cnt_n0_badrx <= cnt_n0_badrx + 1'b1;
+            if (pulse_ns10g_badrx1) cnt_n1_badrx <= cnt_n1_badrx + 1'b1;
+            if (pulse_ns10g_ovf0)   cnt_n0_ovf   <= cnt_n0_ovf   + 1'b1;
+            if (pulse_ns10g_ovf1)   cnt_n1_ovf   <= cnt_n1_ovf   + 1'b1;
+            if (pulse_ns10g_csum0) begin
+                cnt_n0_csum <= cnt_n0_csum + 1'b1;
+                ns10g_csum0_sticky <= 1'b1;
+            end
+            if (pulse_ns10g_csum1) begin
+                cnt_n1_csum <= cnt_n1_csum + 1'b1;
+                ns10g_csum1_sticky <= 1'b1;
+            end
+            if (ns10g_aes0_done) ns10g_aes0_sticky <= 1'b1;
+            if (ns10g_aes1_done) ns10g_aes1_sticky <= 1'b1;
             if (aes_start)
                 aes_done_sticky <= 1'b0;
             else if (aes_done)
@@ -314,6 +432,13 @@ module netsec_regs (
         sfp2_los, sfp1_los, phy_link, mmcm_locked, datapath_ready
     };
 
+    logic [31:0] sfp10g_status_word;
+    assign sfp10g_status_word = {18'd0, sfp10g_hber1, sfp10g_hber0,
+                                 sfp10g_rxst1, sfp10g_rxst0,
+                                 sfp10g_lock1, sfp10g_lock0, 3'd0,
+                                 sfp2_los, sfp1_los, sfp10g_rx_done,
+                                 sfp10g_tx_done, 1'b1};
+
     always_ff @(posedge aclk or negedge aresetn) begin
         if (!aresetn) begin
             s_axi_arready <= 1'b0;
@@ -327,52 +452,92 @@ module netsec_regs (
                 s_axi_arready <= 1'b0;
 
             if (s_axi_arvalid && s_axi_arready) begin
-                unique case (s_axi_araddr[7:0])
-                    8'h00: s_axi_rdata <= reg_ctrl;
-                    8'h04: s_axi_rdata <= status_word;
-                    8'h08: s_axi_rdata <= reg_loopback;
-                    8'h10: s_axi_rdata <= cnt_rx;
-                    8'h14: s_axi_rdata <= cnt_tx;
-                    8'h18: s_axi_rdata <= cnt_fwd;
-                    8'h1C: s_axi_rdata <= cnt_drop;
-                    8'h20: s_axi_rdata <= cnt_mirror;
-                    8'h24: s_axi_rdata <= cnt_dpi;
-                    8'h28: s_axi_rdata <= cnt_mac_rx_good;
-                    8'h2C: s_axi_rdata <= cnt_mac_rx_bad_fcs;
-                    8'h30: s_axi_rdata <= key_w0;
-                    8'h34: s_axi_rdata <= key_w1;
-                    8'h38: s_axi_rdata <= key_w2;
-                    8'h3C: s_axi_rdata <= key_w3;
-                    8'h40: s_axi_rdata <= pat0;
-                    8'h44: s_axi_rdata <= pat1;
-                    8'h48: s_axi_rdata <= pat2;
-                    8'h4C: s_axi_rdata <= pat3;
-                    8'h50: s_axi_rdata <= reg_mdio_ctrl;
-                    8'h54: s_axi_rdata <= reg_mdio_wdata;
-                    8'h58: s_axi_rdata <= {14'd0, mdio_done_sticky, mdio_busy, mdio_rdata};
-                    8'h5C: s_axi_rdata <= reg_rgmii_dly;
-                    8'h60: s_axi_rdata <= {16'd0, sfp_status};
-                    8'h64: s_axi_rdata <= cnt_mac_rx_bad_frame;
-                    8'h68: s_axi_rdata <= cnt_mac_tx_good;
-                    8'h6C: s_axi_rdata <= cnt_rgmii_rx_act;
-                    8'h70: s_axi_rdata <= pt_w0;
-                    8'h74: s_axi_rdata <= pt_w1;
-                    8'h78: s_axi_rdata <= pt_w2;
-                    8'h7C: s_axi_rdata <= pt_w3;
-                    8'h80: s_axi_rdata <= aes_ciphertext[31:0];
-                    8'h84: s_axi_rdata <= aes_ciphertext[63:32];
-                    8'h88: s_axi_rdata <= aes_ciphertext[95:64];
-                    8'h8C: s_axi_rdata <= aes_ciphertext[127:96];
-                    8'h90: s_axi_rdata <= {csum_last_r, 15'd0, csum_data_r};
-                    8'h94: s_axi_rdata <= {16'd0, csum_result_r};
-                    8'h98: s_axi_rdata <= mx_base;
-                    8'h9C: s_axi_rdata <= mx_exp;
-                    8'hA0: s_axi_rdata <= mx_mod;
-                    8'hA4: s_axi_rdata <= modexp_result;
-                    8'hB0: s_axi_rdata <= aes_dp_ciphertext[31:0];
-                    8'hB4: s_axi_rdata <= aes_dp_ciphertext[63:32];
-                    8'hB8: s_axi_rdata <= aes_dp_ciphertext[95:64];
-                    8'hBC: s_axi_rdata <= aes_dp_ciphertext[127:96];
+                unique case (s_axi_araddr[8:0])
+                    9'h000: s_axi_rdata <= reg_ctrl;
+                    9'h004: s_axi_rdata <= status_word;
+                    9'h008: s_axi_rdata <= reg_loopback;
+                    9'h010: s_axi_rdata <= cnt_rx;
+                    9'h014: s_axi_rdata <= cnt_tx;
+                    9'h018: s_axi_rdata <= cnt_fwd;
+                    9'h01C: s_axi_rdata <= cnt_drop;
+                    9'h020: s_axi_rdata <= cnt_mirror;
+                    9'h024: s_axi_rdata <= cnt_dpi;
+                    9'h028: s_axi_rdata <= cnt_mac_rx_good;
+                    9'h02C: s_axi_rdata <= cnt_mac_rx_bad_fcs;
+                    9'h030: s_axi_rdata <= key_w0;
+                    9'h034: s_axi_rdata <= key_w1;
+                    9'h038: s_axi_rdata <= key_w2;
+                    9'h03C: s_axi_rdata <= key_w3;
+                    9'h040: s_axi_rdata <= pat0;
+                    9'h044: s_axi_rdata <= pat1;
+                    9'h048: s_axi_rdata <= pat2;
+                    9'h04C: s_axi_rdata <= pat3;
+                    9'h050: s_axi_rdata <= reg_mdio_ctrl;
+                    9'h054: s_axi_rdata <= reg_mdio_wdata;
+                    9'h058: s_axi_rdata <= {14'd0, mdio_done_sticky, mdio_busy, mdio_rdata};
+                    9'h05C: s_axi_rdata <= reg_rgmii_dly;
+                    9'h060: s_axi_rdata <= {16'd0, sfp_status};
+                    9'h064: s_axi_rdata <= cnt_mac_rx_bad_frame;
+                    9'h068: s_axi_rdata <= cnt_mac_tx_good;
+                    9'h06C: s_axi_rdata <= cnt_rgmii_rx_act;
+                    9'h070: s_axi_rdata <= pt_w0;
+                    9'h074: s_axi_rdata <= pt_w1;
+                    9'h078: s_axi_rdata <= pt_w2;
+                    9'h07C: s_axi_rdata <= pt_w3;
+                    9'h080: s_axi_rdata <= aes_ciphertext[31:0];
+                    9'h084: s_axi_rdata <= aes_ciphertext[63:32];
+                    9'h088: s_axi_rdata <= aes_ciphertext[95:64];
+                    9'h08C: s_axi_rdata <= aes_ciphertext[127:96];
+                    9'h090: s_axi_rdata <= {csum_last_r, 15'd0, csum_data_r};
+                    9'h094: s_axi_rdata <= {16'd0, csum_result_r};
+                    9'h098: s_axi_rdata <= mx_base;
+                    9'h09C: s_axi_rdata <= mx_exp;
+                    9'h0A0: s_axi_rdata <= mx_mod;
+                    9'h0A4: s_axi_rdata <= modexp_result;
+                    9'h0B0: s_axi_rdata <= aes_dp_ciphertext[31:0];
+                    9'h0B4: s_axi_rdata <= aes_dp_ciphertext[63:32];
+                    9'h0B8: s_axi_rdata <= aes_dp_ciphertext[95:64];
+                    9'h0BC: s_axi_rdata <= aes_dp_ciphertext[127:96];
+                    9'h0C0: s_axi_rdata <= sfp10g_status_word;
+                    9'h0C4: s_axi_rdata <= cnt_sfp10g_tx0;
+                    9'h0C8: s_axi_rdata <= cnt_sfp10g_rx0;
+                    9'h0CC: s_axi_rdata <= cnt_sfp10g_bad0;
+                    9'h0D0: s_axi_rdata <= cnt_sfp10g_tx1;
+                    9'h0D4: s_axi_rdata <= cnt_sfp10g_rx1;
+                    9'h0D8: s_axi_rdata <= cnt_sfp10g_bad1;
+                    9'h0DC: s_axi_rdata <= reg_sfp10g_ctrl;
+                    9'h100: s_axi_rdata <= reg_ns10g_ctrl;
+                    9'h104: s_axi_rdata <= {14'd0, ns10g_csum1_sticky, ns10g_csum0_sticky,
+                                           6'd0, ns10g_aes1_sticky, ns10g_aes0_sticky,
+                                           ns10g_last1, ns10g_last0};
+                    9'h108: s_axi_rdata <= cnt_n0_rx;
+                    9'h10C: s_axi_rdata <= cnt_n0_tx;
+                    9'h110: s_axi_rdata <= cnt_n0_fwd;
+                    9'h114: s_axi_rdata <= cnt_n0_drop;
+                    9'h118: s_axi_rdata <= cnt_n0_mir;
+                    9'h11C: s_axi_rdata <= cnt_n0_dpi;
+                    9'h120: s_axi_rdata <= cnt_n1_rx;
+                    9'h124: s_axi_rdata <= cnt_n1_tx;
+                    9'h128: s_axi_rdata <= cnt_n1_fwd;
+                    9'h12C: s_axi_rdata <= cnt_n1_drop;
+                    9'h130: s_axi_rdata <= cnt_n1_mir;
+                    9'h134: s_axi_rdata <= cnt_n1_dpi;
+                    9'h140: s_axi_rdata <= cnt_n0_badrx;
+                    9'h144: s_axi_rdata <= cnt_n1_badrx;
+                    9'h148: s_axi_rdata <= cnt_n0_ovf;
+                    9'h14C: s_axi_rdata <= cnt_n1_ovf;
+                    9'h150: s_axi_rdata <= cnt_n0_csum;
+                    9'h154: s_axi_rdata <= cnt_n1_csum;
+                    9'h158: s_axi_rdata <= ns10g_aes0_ct[31:0];
+                    9'h15C: s_axi_rdata <= ns10g_aes0_ct[63:32];
+                    9'h160: s_axi_rdata <= ns10g_aes0_ct[95:64];
+                    9'h164: s_axi_rdata <= ns10g_aes0_ct[127:96];
+                    9'h168: s_axi_rdata <= 32'd0;
+                    9'h16C: s_axi_rdata <= 32'd0;
+                    9'h170: s_axi_rdata <= ns10g_aes1_ct[31:0];
+                    9'h174: s_axi_rdata <= ns10g_aes1_ct[63:32];
+                    9'h178: s_axi_rdata <= ns10g_aes1_ct[95:64];
+                    9'h17C: s_axi_rdata <= ns10g_aes1_ct[127:96];
                     default: s_axi_rdata <= 32'hDEAD_BEEF;
                 endcase
                 s_axi_rvalid <= 1'b1;

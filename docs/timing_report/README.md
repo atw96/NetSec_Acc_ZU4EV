@@ -2,7 +2,7 @@
 
 由 `scripts/build.tcl` 在本地 Vivado 2020.1 综合/实现后自动导出。
 
-注意：`build_clk90off.tcl` 会覆盖本目录为 **CLK90-off** 图（最近一次 WNS +1.002 ns）。默认上板图仍是 `bitstream_output/system_top_clk90on.bit`（WNS +0.909 ns）。README 资源表以 clk90on 为准。
+默认上板图是 2026-09-25 `bitstream_output/system_top.bit`（与 `system_top_rxdly.bit` 同内容）：**WNS +0.059 ns / WHS +0.010 ns**，LUT 60515 (68.89%)。`timing_summary.rpt` 里仍报的 WPWS −1.667 ns 是 `u_idelayctrl` REFCLK（200 MHz vs 器件 Max Period 3.333 ns）。历史 CLK90-off 对照图 WNS +1.002 ns。
 
 - `timing_summary.rpt`
 - `timing_summary_sfp.rpt` / `timing_summary_sfp10g.rpt`

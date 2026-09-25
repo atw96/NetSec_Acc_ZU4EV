@@ -24,13 +24,15 @@ if {[current_project -quiet] eq ""} {
 
 update_compile_order -fileset sources_1
 set_property top system_top [current_fileset]
-# Default image is L0–L3 (no GT). create_sfp_pcs.tcl latches ENABLE=1; clear it here.
+# Default image: copper RGMII + dual-SFP 10G. 1G PRBS (ENABLE_SFP) is mutually exclusive
+# with 10G on X0Y4/X0Y5. create_sfp_pcs.tcl latches ENABLE_SFP=1 — keep it 0 here.
 if {![info exists ::NETSEC_GENERICS]} {
     # clk90off is the only RGMII phase that echoed on AXU4EVB-P
-    set ::NETSEC_GENERICS {NETSEC_ENABLE_SFP=1'b0 RGMII_TX_USE_CLK90=FALSE}
+    set ::NETSEC_GENERICS {NETSEC_ENABLE_SFP=1'b0 NETSEC_ENABLE_SFP10G=1'b1 RGMII_TX_USE_CLK90=FALSE}
 }
 set_property generic $::NETSEC_GENERICS [current_fileset]
-set_property verilog_define {} [current_fileset]
+set_property verilog_define {NETSEC_SFP_PORTS} [current_fileset]
+source [file join $repo_root scripts create_gt_10g.tcl]
 
 catch {reset_run synth_1}
 catch {reset_run impl_1}

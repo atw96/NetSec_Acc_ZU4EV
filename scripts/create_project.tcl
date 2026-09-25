@@ -86,6 +86,8 @@ lappend files \
     [file join $repo_root rtl top pkt_gen_bram.sv] \
     [file join $repo_root rtl top pkt_gen_10g.sv] \
     [file join $repo_root rtl top sfp10g_regs.sv] \
+    [file join $repo_root rtl top netsec_axis_bridge.sv] \
+    [file join $repo_root rtl top netsec10g_switch.sv] \
     [file join $repo_root rtl top netsec_datapath.sv] \
     [file join $repo_root rtl top netsec_top.sv] \
     [file join $repo_root rtl top system_top.sv] \
@@ -111,4 +113,9 @@ source [file join $repo_root scripts create_debug_cores.tcl]
 # ---- Build BD (PS + jtag_axi + AXI to netsec) ----
 source [file join $repo_root scripts create_bd.tcl]
 
-puts "INFO: Project created. Next: source scripts/build.tcl"
+# ---- Dual-lane 10G GT Wizard (X0Y4/X0Y5). Sourced again by build.tcl if missing. ----
+source [file join $repo_root scripts create_gt_10g.tcl]
+set_property verilog_define {NETSEC_SFP_PORTS} [current_fileset]
+set_property generic {NETSEC_ENABLE_SFP=1'b0 NETSEC_ENABLE_SFP10G=1'b1 RGMII_TX_USE_CLK90=FALSE} [current_fileset]
+
+puts "INFO: Project created (default top system_top includes dual-SFP 10G). Next: source scripts/build.tcl"

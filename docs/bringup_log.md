@@ -161,7 +161,7 @@ L3/PC 打流时保持 CTRL[12]=0。光口外环回见下节，缺模块则 LINK=
 | 近端 PMA + PRBS7 | Near-End PMA / PRBS 7-bit | `LOOPBACK=Near-End PMA`，`TX/RX_PATTERN=PRBS 7-bit`，`PORT.LOOPBACK=2` | 是 |
 | LOGIC.LINK | 1 | **`1`** | 是 |
 | RX_BER | ≪1e-6 | **`4.03e-08`**（`RX_RECEIVED_BIT_COUNT=2608448280`） | 是 |
-| 默认图 `0x60` | 可读 | stub `SFP_ST=0x00000003`（LOS 位；默认图无 GT） | 是（寄存器通路） |
+| 默认图 `0x60` / `0xC0` | 可读 | 现默认图含 10G：`0x60` 为 lock/LOS 向量，`0xC0` 为 SFP10G_ST | 是（寄存器通路） |
 | LED | — | 远程无法目视；L4 **不以 LED 为判据** | — |
 
 权威结论：GTH X0Y4 + V6/V5 125 MHz refclk **物理可用**。自研 PRBS 图见下一节。L4 IBERT 测完请再烧回 `system_top_rxdly.bit`。
@@ -206,10 +206,13 @@ refclk = **125 MHz**（SiT9121 V6/V5）。IBERT 无法配置 10.3125G+125 MHz，
 
 当时 IBERT 例程未驱动 `sfp_tx_dis`（D12）。`create_ibert.tcl` 现已给 example 补 D12=0；**未**用该补丁重编 IBERT 图。10G 业务图把 D12 拉低后 LOS=0、PCS lock=1，说明笼/模块/光纤可用。测完已烧回 rxdly。
 
-## L4 — `system_top_sfp10g.bit` 10GBASE-R 以太网互环
+## L4 — 10GBASE-R 以太网互环（已并入默认 `system_top`）
 
-脚本：`scripts/build_sfp10g.tcl` + `hw_sfp10g.tcl`。独立 top，不改 `system_top_rxdly.bit`。  
-2026-09-24 22:11 `hw_sfp10g.tcl`：**PASS**（block_lock + RX 增长），测完烧回 rxdly。
+2026-09-24 先用独立 `system_top_sfp10g.bit` 打通：`scripts/build_sfp10g.tcl` + `hw_sfp10g.tcl`。  
+2026-09-24 22:11 `hw_sfp10g.tcl`：**PASS**（block_lock + RX 增长）。  
+之后同一套 `sfp10g_wrap` 例进默认 `netsec_top`（`NETSEC_ENABLE_SFP10G=1`），计数在 `0xC0`–`0xD8`，上板用 `nsec_sfp10g_check`。独立 top 仍可作隔离对照。
+
+G5（RX BAD≈RX）处置：默认 `IGNORE_RX_RESET_REQ=1`，切断 `eth_phy_10g` `rx_reset_req` → GT RX datapath 复位（H1：~10.25G 实速率下 ber_mon 误 high_ber）。TB-4 数字 serdes 环能 lock，说明 FCS 链路本身可对齐。L5 板上数字见下一节（2026-09-25 新图未烧进，NEED_HW）。
 
 | 检查 | 期望 | 实测 | 通过 |
 |------|------|------|------|
@@ -219,7 +222,21 @@ refclk = **125 MHz**（SiT9121 V6/V5）。IBERT 无法配置 10.3125G+125 MHz，
 | t0 → t1 TX1/RX1/BAD1 | 同上 | TX1 `0x17d9ac→0x1ee536`，RX1 `0x0bf1f6→0x0f7882`，BAD1 `0x0bf3f3→0x0f7a22` | 是（RX 涨） |
 | CNT_BAD | 不涨 | BAD≈RX（几乎每帧标 bad_fcs/bad_frame）；RX 约为对端 TX 的一半 | **部分** |
 
-首版 `txsequence=0` 不成帧。补 64B66B `TXSEQUENCE` 0–32 + 把 RX `rxdata/valid` 寄一拍再 `BUFGCE` 后门控 PCS 后，双口 lock 且对端有帧。FCS 仍高，未并进 NetSec DPI。
+首版 `txsequence=0` 不成帧。补 64B66B `TXSEQUENCE` 0–32 + 把 RX `rxdata/valid` 寄一拍再 `BUFGCE` 后门控 PCS 后，双口 lock 且对端有帧。FCS 仍高。
+
+## L5 — 10G 检测通路（默认 `system_top` 双 datapath）
+
+日期：2026-09-25。图 `bitstream_output/system_top.bit` / `system_top_rxdly.bit`（10:29，6605172 B）。RTL：`sfp10g_wrap` AXIS + `tx_src` mux、`netsec_axis_bridge`、`netsec10g_switch`、2× `netsec_datapath`（FRAME_DEPTH=4096）、regs `0x100`。G5 缓解：`IGNORE_RX_RESET_REQ=1`（H1）。
+
+| 检查 | 期望 | 实测 | 通过 |
+|------|------|------|------|
+| 综合/实现 | WNS≥0 | **WNS +0.059 ns，TNS 0；WHS +0.010 ns，THS 0**（`docs/timing_report/timing_summary.rpt`）。LUT 60515 (68.89%) / FF 88763 / BRAM 15.5。WPWS −1.667 ns = IDELAYCTRL REFCLK Max Period 3.333 ns vs 200 MHz（XDC 已 `set_disable_timing`，报告仍列） | 是（setup/hold） |
+| TB-1…5 | 仿真 PASS | Icarus：TB-1/2/3 PASS；TB-4 lock PASS；TB-5 默认值 PASS | 是（仿真） |
+| L5a BIST | `nsec_sfp10g_check` lock+RX 涨 | 2026-09-25 11:51 `scripts/hw_l5_bringup.tcl`：`End of startup HIGH`，`hw_axi` 可见。`0xC0=0x2F07`（双口 lock）。t0→t1（3 s）TX0 `0x232e35→0x2a321f` RX0 `0x11b10c→0x1535a0`；TX1 `0x2339b4→0x2a3ef0` RX1 `0x11acdc→0x1531d6`。BAD≈RX | **是** |
+| L5b INLINE | `0x100=0x5` 后 `0x108`/`0x120` 涨 | 写 `0x100=0x5` 回读成功。`0x108`/`0x120`/`0x11C`/`0x134` 全 0。`0x140`/`0x144` BADRX=`0x12a31c`/`0x1291bd`（桥收到帧但标坏）。OVF/CSUM=0 | **部分**（通路通，有效帧未进 datapath；G5 仍在） |
+| L5c 片上注帧 | `0x100=0x45` 后 `0x108`/`0x11C` 涨 | 2026-09-25 13:21 新图（WNS +0.307 ns）：t0 全 0 → t1 **RX0=2 DPI0=1 MIR0=1 FWD0=1**，CTRL 回 `0x5`。无外部 10G 网卡，用 `0x100[6]` GET 注入 DP_A | **是** |
+
+复测（不重启主机）：确认无僵尸 `hw_server` 后 `vivado -mode batch -source scripts/hw_l5_bringup.tcl`。独立图 2026-09-24 lock+RX 数字仍作对照。
 
 ## PS 裸机对照
 

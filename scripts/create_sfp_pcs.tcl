@@ -46,7 +46,7 @@ generate_target all [get_ips sfp_pcs_1g]
 # Lock SFP1 to Bank224 Lane0 when the property exists
 catch {set_property CONFIG.GT_Location {X0Y4} [get_ips sfp_pcs_1g]}
 
-# Do not latch ENABLE=1 onto the fileset — default bitstream stays L0–L3.
-# L4 rebuild: set_property generic {NETSEC_ENABLE_SFP=1'b1} + verilog_define NETSEC_SFP_PORTS
-puts "INFO: sfp_pcs_1g generated. L4 opt-in: NETSEC_ENABLE_SFP=1 / NETSEC_SFP_PORTS."
+# Do not latch ENABLE_SFP=1 — that 1G PRBS IP shares X0Y4 with default 10G.
+# 1G PRBS rebuild: NETSEC_ENABLE_SFP=1 NETSEC_ENABLE_SFP10G=0 + NETSEC_SFP_PORTS
+puts "INFO: sfp_pcs_1g generated. 1G PRBS opt-in: NETSEC_ENABLE_SFP=1 / ENABLE_SFP10G=0."
 puts "INFO: Fallback if loopback bit != PG047: factory gtwizard + loopback_in=3'b010."

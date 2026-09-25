@@ -52,8 +52,8 @@ PL 够不着这些引脚；网口1 只能由 PS GEM3 收发。
 
 | 功能 | 映射 | 备注 |
 |------|------|------|
-| SFP1 TX/RX | `224_TX0/RX0` = **GTH X0Y4** | `system_top_sfp10g` 例化 10G PCS/MAC；1.25G L4 仅此 lane |
-| SFP2 TX/RX | `224_TX1/RX1` = **GTH X0Y5** | `system_top_sfp10g` 例化；默认铜口图不例化 |
+| SFP1 TX/RX | `224_TX0/RX0` = **GTH X0Y4** | 默认 `system_top` 例化 10G PCS/MAC；1.25G PRBS 与 10G 互斥 |
+| SFP2 TX/RX | `224_TX1/RX1` = **GTH X0Y5** | 默认 `system_top` 例化；勿占用 X0Y6/X0Y7 |
 | PCIe x2 | `224` Lane2/3 = X0Y6/X0Y7 | 勿占用 |
 | GT 参考时钟 **125.000 MHz** | `mgtrefclk_p/n` = **V6 / V5** | 原理图 PAGE19 `SiT9121AI-2B1-33E125.000000`；工厂 `gt.xdc` period 8.000。**不是** 156.25 MHz 晶振。156.25 MHz 是 10GBASE-R 的 GT `TXUSRCLK2`（10.3125/66） |
 

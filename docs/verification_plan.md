@@ -7,8 +7,8 @@
 | 单元级自检 Testbench | Icarus Verilog (`iverilog`/`vvp`) | ✅ 已在本仓库沙箱环境跑通（见各模块 tb 运行日志，附于 README） |
 | Python 黄金模型比对 | Python3 + pycryptodome + scapy | ✅ AES / Checksum / DPI 已建立黄金模型并比对 |
 | 报文级 UVM 环境 | QuestaSim / VCS / Xcelium（需商用许可） | ✅ ModelSim SE-64 2020.4 本机编译并跑通 smoke（0 UVM_ERROR），见 `tb/uvm_env/QUESTA_STATUS.md` |
-| Vivado 综合/实现 | Vivado 2020.1 | ✅ `scripts/build.tcl`：WNS +0.907 ns，比特流 `bitstream_output/system_top.bit` |
-| 板级环回/流量测试 | AXU4EVB-P + Wireshark | 🔲 比特流已就绪；流程见 `docs/selftest_loopback.md` |
+| Vivado 综合/实现 | Vivado 2020.1 | ✅ 2026-09-25 13:17 默认图（含 L5c 注帧）：WNS +0.307 ns，WHS +0.010 ns |
+| 板级环回/流量测试 | AXU4EVB-P + Wireshark | L0–L4 见 bringup_log；**L5a PASS**；L5b 部分；**L5c 片上注帧 PASS**（无外部 10G 网卡） |
 
 ## UVM 环境扩展说明
 
@@ -39,3 +39,10 @@ ModelSim SE-64 2020.4 上编译并跑通 smoke（DPI 使用厂商预编译 `uvm_
 | `tb_aes128.sv` | 05a | NIST FIPS-197 标准测试向量比对 |
 | `tb_modexp.sv` | 05b | 小规模模幂运算与 Python `pow(base, exp, mod)` 比对 |
 | `tb_ips_decision.sv` | 06 | 穷举决策表全部输入组合 |
+| `tb_sfp10g_axis_if.sv` | TB-1 | BIST/EXT TX mux |
+| `tb_netsec_axis_bridge.sv` | TB-2 | 64↔8 CDC 桥，好帧通过、坏帧丢弃 |
+| `tb_netsec10g_inline.sv` | TB-3 | INLINE 口0 GET → DPI/MIRROR |
+| `tb_mac10g_digital_loop.sv` | TB-4 | `eth_mac_phy_10g` 数字 serdes 环，PCS lock |
+| `tb_ns10g_regs.sv` | TB-5 | `0x100` 块与 `0x00`–`0xDC` 不串扰 |
+
+2026-09-25 Icarus：TB-1/2/3 PASS；TB-4 PCS lock PASS；TB-5 复位默认值 PASS（AXI 写握手未完全打通，不得当作写通路板级通过）。
