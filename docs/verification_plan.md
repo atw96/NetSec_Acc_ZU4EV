@@ -7,8 +7,8 @@
 | 单元级自检 Testbench | Icarus Verilog (`iverilog`/`vvp`) | ✅ 已在本仓库沙箱环境跑通（见各模块 tb 运行日志，附于 README） |
 | Python 黄金模型比对 | Python3 + pycryptodome + scapy | ✅ AES / Checksum / DPI 已建立黄金模型并比对 |
 | 报文级 UVM 环境 | QuestaSim / VCS / Xcelium（需商用许可） | ✅ ModelSim SE-64 2020.4 本机编译并跑通 smoke（0 UVM_ERROR），见 `tb/uvm_env/QUESTA_STATUS.md` |
-| Vivado 综合/实现 | Vivado 2020.1 | ✅ 2026-10-14 默认图：WNS +0.255 ns，WHS +0.010 ns；LUT 87.22% / FF 60.57% / BRAM 65.63% / URAM 66.67% |
-| 板级环回/流量测试 | AXU4EVB-P + Wireshark | L0–L4 见 bringup_log。2026-10-14：**L5a** lock 但 BAD≈RX；**L5b** 数据面 0；**L5c 片上注帧 PASS**；**L5d** BIST TX0 +153756 / RX0 +77259（1 s 窗口），INLINE 数据面增量 0 |
+| Vivado 综合/实现 | Vivado 2020.1 | ✅ 2026-10-15 默认图：WNS +0.092 ns，WHS +0.010 ns；LUT 86.99% / FF 60.62% / BRAM 65.63% / URAM 66.67% |
+| 板级环回/流量测试 | AXU4EVB-P + Wireshark | L0–L4 见 bringup_log。2026-10-15：**L5a PASS**（BAD 增量 0）；**L5b PASS**（DP RX0 +307843 / RX1 +310855）；**L5b-DPI PASS**；**L5c PASS**（DPI0 +1）；**L5d** gap=0 的 1 s：MAC TX0 +14454536，DP RX0 +14586237 |
 
 ## UVM 环境扩展说明
 

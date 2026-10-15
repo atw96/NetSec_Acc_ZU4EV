@@ -6,7 +6,10 @@ module tb_netsec10g_inline;
     always #3.2 clk = ~clk;
 
     logic [1:0] mode, dp_en;
-    logic inj_start;
+    logic inj_start, gen_inline, inj_mac, inj_busy;
+    logic [63:0] mi_d;
+    logic [7:0]  mi_k;
+    logic mi_v, mi_r, mi_l, mi_u;
     logic [511:0] pats;
     logic [63:0] rx0_d, rx1_d, tx0_d, tx1_d;
     logic [7:0]  rx0_k, rx1_k, tx0_k, tx1_k;
@@ -29,6 +32,10 @@ module tb_netsec10g_inline;
         .mode(mode), .dp_en(dp_en),
         .aes0_en(1'b0), .aes1_en(1'b0), .aes_key(128'd0),
         .pats(pats), .inj_start(inj_start),
+        .gen_inline(gen_inline), .inj_mac(inj_mac),
+        .mac_inj_tdata(mi_d), .mac_inj_tkeep(mi_k), .mac_inj_tvalid(mi_v),
+        .mac_inj_tready(mi_r), .mac_inj_tlast(mi_l), .mac_inj_tuser(mi_u),
+        .inj_busy_o(inj_busy),
         .rx0_tdata(rx0_d), .rx0_tkeep(rx0_k), .rx0_tvalid(rx0_v),
         .rx0_tready(rx0_r), .rx0_tlast(rx0_l), .rx0_tuser(rx0_u),
         .rx1_tdata(rx1_d), .rx1_tkeep(rx1_k), .rx1_tvalid(rx1_v),
@@ -50,10 +57,10 @@ module tb_netsec10g_inline;
         .aes0_fold(fold0), .aes1_fold(fold1)
     );
 
-    int n_rx, n_fwd, n_mir, n_dpi, n_tx0, n_tx1;
+    int n_rx, n_fwd, n_mir, n_dpi, n_tx0, n_tx1, n_inj;
     always @(posedge clk) begin
         if (!rst_n) begin
-            n_rx <= 0; n_fwd <= 0; n_mir <= 0; n_dpi <= 0; n_tx0 <= 0; n_tx1 <= 0;
+            n_rx <= 0; n_fwd <= 0; n_mir <= 0; n_dpi <= 0; n_tx0 <= 0; n_tx1 <= 0; n_inj <= 0;
         end else begin
             if (p_rx0)  n_rx  <= n_rx + 1;
             if (p_fwd0) n_fwd <= n_fwd + 1;
@@ -61,6 +68,7 @@ module tb_netsec10g_inline;
             if (p_dpi0) n_dpi <= n_dpi + 1;
             if (tx0_v && tx0_r && tx0_l) n_tx0 <= n_tx0 + 1;
             if (tx1_v && tx1_r && tx1_l) n_tx1 <= n_tx1 + 1;
+            if (mi_v && mi_r && mi_l) n_inj <= n_inj + 1;
         end
     end
 
@@ -73,10 +81,11 @@ module tb_netsec10g_inline;
         end
     endtask
 
-    int errors, i, snap_tx0, snap_rx;
+    int errors, i, snap_tx0, snap_tx1, snap_rx;
     initial begin
         errors = 0;
         mode = 2'd0; dp_en = 2'b11; inj_start = 0;
+        gen_inline = 0; inj_mac = 0; mi_r = 1;
         pats = 512'd0;
         pats[31:0] = 32'h47455420;
         rx0_v = 0; rx0_d = 0; rx0_k = 0; rx0_l = 0; rx0_u = 0;
@@ -140,6 +149,59 @@ module tb_netsec10g_inline;
             $display("PASS: LOOP returned a frame tx0=%0d rx=%0d", n_tx0, n_rx);
         else begin
             $display("FAIL: LOOP tx0=%0d (was %0d) rx=%0d (was %0d)", n_tx0, snap_tx0, n_rx, snap_rx);
+            errors = errors + 1;
+        end
+
+        snap_rx = n_rx;
+        snap_tx0 = n_tx0;
+        snap_tx1 = n_tx1;
+        mode = 2'd0;
+        gen_inline = 1'b1;
+        repeat (4) @(posedge clk);
+        for (i = 0; i < 8; i = i + 1) begin
+            rx0_v <= 1'b1;
+            rx0_d <= {56'h0, i[7:0]};
+            rx0_k <= 8'hFF;
+            rx0_l <= (i == 7);
+            rx0_u <= 1'b0;
+            @(posedge clk);
+            while (!rx0_r) @(posedge clk);
+        end
+        rx0_v <= 1'b0;
+        rx0_l <= 1'b0;
+        begin : wait_gen
+            int t;
+            t = 0;
+            while (n_rx <= snap_rx && t < 4000) begin
+                @(posedge clk);
+                t = t + 1;
+            end
+        end
+        repeat (40) @(posedge clk);
+        if (n_rx > snap_rx && n_tx0 == snap_tx0 && n_tx1 == snap_tx1)
+            $display("PASS: GEN_INLINE inspected rx=%0d tx0=%0d tx1=%0d", n_rx, n_tx0, n_tx1);
+        else begin
+            $display("FAIL: GEN_INLINE rx=%0d (was %0d) tx0=%0d (was %0d) tx1=%0d (was %0d)", n_rx, snap_rx, n_tx0, snap_tx0, n_tx1, snap_tx1);
+            errors = errors + 1;
+        end
+
+        snap_rx = n_rx;
+        gen_inline = 1'b0;
+        inj_mac = 1'b1;
+        pulse_inj();
+        begin : wait_imac
+            int t;
+            t = 0;
+            while (n_inj < 2 && t < 4000) begin
+                @(posedge clk);
+                t = t + 1;
+            end
+        end
+        repeat (20) @(posedge clk);
+        if (n_inj >= 2 && n_rx == snap_rx)
+            $display("PASS: inj_mac frames=%0d dp_rx stayed %0d", n_inj, n_rx);
+        else begin
+            $display("FAIL: inj_mac frames=%0d dp_rx=%0d (was %0d)", n_inj, n_rx, snap_rx);
             errors = errors + 1;
         end
 

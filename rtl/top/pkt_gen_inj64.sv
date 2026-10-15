@@ -41,6 +41,9 @@ module pkt_gen_inj64 (
         rom_d[15] = 64'h0000_0000_002f_2054; rom_k[15] = 8'hff; rom_l[15] = 1'b1;
     end
 
+    // Handshake holds tdata/tkeep/tlast while tvalid && !tready, and tlast
+    // is already 1 on the beat that is accepted. Reviewed against the
+    // pkt_gen_10g tlast-drop bug; this generator does not have it.
     logic [4:0] idx;
     logic       active, start_d, gap;
 

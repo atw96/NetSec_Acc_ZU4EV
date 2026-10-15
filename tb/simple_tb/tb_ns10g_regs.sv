@@ -46,7 +46,7 @@ module tb_ns10g_regs;
         .pulse_sfp10g_tx0(1'b0), .pulse_sfp10g_rx0(1'b0), .pulse_sfp10g_bad0(1'b0),
         .pulse_sfp10g_tx1(1'b0), .pulse_sfp10g_rx1(1'b0), .pulse_sfp10g_bad1(1'b0),
         .ns10g_mode(mode), .ns10g_dp_en(dpen), .ns10g_aes0_en(), .ns10g_aes1_en(),
-        .ns10g_inj(),
+        .ns10g_inj(), .ns10g_gen_inline(), .ns10g_inj_mac(), .ns10g_gap(),
         .ns10g_last0(2'b11), .ns10g_last1(2'b01),
         .pulse_ns10g_rx0(1'b0), .pulse_ns10g_tx0(1'b0), .pulse_ns10g_fwd0(1'b0),
         .pulse_ns10g_drop0(1'b0), .pulse_ns10g_mir0(1'b0), .pulse_ns10g_dpi0(1'b0),
@@ -131,6 +131,13 @@ module tb_ns10g_regs;
         if (v != 32'd1) errors++;
         rd(32'h1B8, v);
         if (v[15:0] != 16'd1) errors++;
+        rd(32'h1F8, v);
+        if (v != 32'd1024) errors++;
+        wr(32'h1F8, 32'd16);
+        rd(32'h1F8, v);
+        if (v != 32'd16) errors++;
+        rd(32'h1C0, v);
+        if (v != 32'd0) errors++;
         if (errors == 0)
             $display("PASS: tb_ns10g_regs");
         else

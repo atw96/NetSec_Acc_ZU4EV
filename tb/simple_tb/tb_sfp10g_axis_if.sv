@@ -13,7 +13,7 @@ module tb_sfp10g_axis_if;
     logic        axis_r = 1;
 
     pkt_gen_10g #(.PORT_ID(8'h01)) u_gen (
-        .clk(clk), .rst(rst), .enable(enable & ~tx_src[0]),
+        .clk(clk), .rst(rst), .enable(enable & ~tx_src[0]), .gap_cycles(16'd64),
         .m_tdata(gen_d), .m_tkeep(gen_k), .m_tvalid(gen_v), .m_tready(gen_r),
         .m_tlast(gen_l), .m_tuser(gen_u), .pulse_tx(gen_p)
     );

@@ -263,6 +263,30 @@ G5（RX BAD≈RX）处置：默认 `IGNORE_RX_RESET_REQ=1`，切断 `eth_phy_10g
 
 `pkt_gen_10g` 每帧 64 B，帧间空 1024 个 `tx_clk_gt` 周期，所以 L5d 的 TX 增量是这台发生器的速率，不是灌满线速。
 
+### G5 根因与修复后上板（2026-10-15）
+
+修复前的 bitstream 上，`loopback_mode=4`（近端 PMA，绕开光纤）3 s 窗口仍是坏帧：TX0 +477602、RX0 +239479、BAD0 +239021；TX1 +474704、RX1 +233587、BAD1 +233216。`0xC0` 保持 `0x00000F07`。坏帧在逻辑侧，不在光路。
+
+根因有三处，都在发出去的方向：
+
+1. `pkt_gen_10g` 的 AXIS：`word` 只看 `m_tready`。`word==7` 时先把 `tlast` 置 1，同一拍后面的赋值又在 `tready` 已为 1 时把 `tvalid` 和 `tlast` 清掉，所以 `tlast` 交不出去。MAC 判 underflow，发 `/E/` 再把后续帧吞掉。旧 RTL 的严格 TB-4：`sent=0 got=1 bad=1 lock=1`，FAIL。改成只在 `tvalid&&tready` 时推进后：`sent=972 got=973 bad=0 proto=0 cmp=0 lock=1`，PASS。`pkt_gen_inj64` 的握手没有这个问题。
+2. TX `BUFGCE` 的使能是寄存器 `tx_ce_q <= (txseq != 32)`，比 GT 在 `TXSEQUENCE==32` 丢掉的那一拍晚一拍。改成组合 `tx_ce = (txseq != 32)`，MAC 停在 GT 忽略数据的那一拍。
+3. `eth_mac_phy_10g` 的 `BIT_REVERSE` 原来是 0。Wizard 64b66b 示例把数据线按位翻转，数据块的 sync header 在线上是 `01`。现改为 1。
+
+XSim 把 `sfp10g_wrap` 和 `gt_sfp_10g` 串行自环接到 700.790 µs（仿真在这里停下，没有跑到 TB 的 2 ms 结束）。100.790 µs 时两口已 lock，`TX0=369 RX0=351 BAD0=0 TX1=369 RX1=352 BAD1=1`，`high_ber` 仍为 1。300.790 µs 时 `high_ber` 为 0。700.790 µs：`lock=11 high_ber=00 TX0=2656 RX0=2637 BAD0=0 TX1=2656 RX1=2638 BAD1=1`。lock 之后 BAD 不再增加，RX 增量与 TX 相同。没有再改 bitslip。
+
+新图 `bitstream_output/system_top.bit`（6680244 B）。LUT 76411/87840（86.99%），FF 106497/175680（60.62%），BRAM 84/128（65.63%），URAM 32/48（66.67%），DSP 4。WNS +0.092 ns，WHS +0.010 ns；`tx_clk_gt`（6.244 ns）WNS +0.092 ns，铜口 `gtx_clk_u` WNS +0.217 ns。WPWS −1.667 ns 仍在 `sys_clk_clk_p`。`End of startup HIGH`，`hw_axi` 可见。
+
+`0x1F8` 是帧间隙（默认 1024）。`0x100[4]` 为 GEN_INLINE，`0x100[5]` 让注帧走 MAC tx0。
+
+| 检查 | 期望 | 实测 | 通过 |
+|------|------|------|------|
+| L5a BIST | 3 s 内 BAD 增量 0，交叉口 RX 与对端 TX 差 ≤0.1% | 先按旧读序：TX0 +461840、RX1 +464149（差 +2309，超过 0.1%），BAD 增量 0，判 FAIL。把 TX0/RX1、TX1/RX0 改成相邻读之后：`0xC0=0x00000F07`，TX0 `0x036B70D8→0x03727D3A`（+461922）、RX1 `0x036B75A4→0x037280F9`（+461653，差 −269），TX1 `0x036B795A→0x03728485`（+461611）、RX0 `0x036E1AC0→0x0375261E`（+461662，差 +51）。BAD0 保持 0，BAD1 保持 1 | **是**（相邻采样） |
+| L5b GEN_INLINE | `0x100=0x1C` 后 `0x108`/`0x120` 涨，BADRX 增量 0 | 2 s：DP RX0 `0x1F13→0x4D196`（+307843）、RX1 `0x22F1→0x4E138`（+310855）。MAC TX0 +310932、TX1 +310944。BADRX0 `0→0`，BADRX1 `1→1`。OVF/CSUM=0。FLOW0/1=1 | **是** |
+| L5b-DPI | `0x134`/`0x130` 涨 | `0x100=0x3C` 后写 `0x7C`。400 ms：DPI1 `0→1`，MIR1 `0→1` | **是** |
+| L5c 片上注帧 | `0x108`/`0x11C` 涨 | `0x100=0x45`。DPI0 `0→1`，MIR0 `0→1`，CTRL 回 `0x5`。RX0 `0x2A41→0x227E7`（+130470）；这一窗口写的是 INLINE，光纤里已有的帧会被转回去 | **是** |
+| L5d 吞吐 | 记录 gap=0 的 1 s 斜率 | `0x1F8=0`。BIST：MAC TX0 `0x000A594B→0x00E6E853`（+14454536）、RX0 `0x000E7406→0x00EB1F61`（+14461787）。GEN_INLINE：DP RX0 `0x000A1E8B→0x00E8B008`（+14586237）、FWD0 `0x000BC0BF→0x00EA340F`（+14578512）。测完写回 `0x1F8=1024` | 斜率已记录 |
+
 ## PS 裸机对照
 
 | 检查 | 期望 | 实测 | 通过 |

@@ -90,6 +90,9 @@ module netsec_regs (
     output logic         ns10g_aes0_en,
     output logic         ns10g_aes1_en,
     output logic         ns10g_inj,
+    output logic         ns10g_gen_inline,
+    output logic         ns10g_inj_mac,
+    output logic [15:0]  ns10g_gap,
     input  logic [1:0]   ns10g_last0,
     input  logic [1:0]   ns10g_last1,
     input  logic         pulse_ns10g_rx0,
@@ -141,8 +144,13 @@ module netsec_regs (
     //                  [9] aes_start (W1C) [10] csum_start (W1C) [11] modexp_start (W1C)
     //                  [12] aes_dp_en（电平：FORWARD 帧偏移 42 起 16B 进 AES）
     // 0x100 NS10G_CTRL [1:0] mode 0=BIST 1=INLINE 2=LOOP 3=DISABLE
-    //                  [3:2] dp_en1/0  [6] inj (W1C，片上 GET 注帧，L5c 无仪表)
+    //                  [3:2] dp_en1/0
+    //                  [4] gen_inline: BIST generators stay on the MACs, RX is inspected
+    //                  [5] inj_mac: inj frames go out MAC tx0 instead of into dp0
+    //                  [6] inj (W1C，片上 GET 注帧，L5c 无仪表)
     //                  [9:8] aes_dp1/0
+    // 0x1F8 NS10G_GAP  [15:0] pkt_gen_10g idle cycles (default 1024; 0 = back-to-back)
+    //                  0x1C0 is pattern-hit index 2 (0x1B8–0x1F4), so gap cannot live there.
     // 0x104 NS10G_ST   [1:0]/[3:2] last_action  [8]/[9] aes done  [16]/[17] csum sticky
     // 0x108–0x11C port0 RX/TX/FWD/DROP/MIR/DPI
     // 0x120–0x134 port1 same
@@ -195,6 +203,7 @@ module netsec_regs (
     logic [31:0] cnt_sfp10g_tx0, cnt_sfp10g_rx0, cnt_sfp10g_bad0;
     logic [31:0] cnt_sfp10g_tx1, cnt_sfp10g_rx1, cnt_sfp10g_bad1;
     logic [31:0] reg_ns10g_ctrl;
+    logic [31:0] reg_ns10g_gap;
     logic [31:0] cnt_n0_rx, cnt_n0_tx, cnt_n0_fwd, cnt_n0_drop, cnt_n0_mir, cnt_n0_dpi;
     logic [31:0] cnt_n1_rx, cnt_n1_tx, cnt_n1_fwd, cnt_n1_drop, cnt_n1_mir, cnt_n1_dpi;
     logic [31:0] cnt_n0_badrx, cnt_n1_badrx, cnt_n0_ovf, cnt_n1_ovf, cnt_n0_csum, cnt_n1_csum;
@@ -241,7 +250,10 @@ module netsec_regs (
     assign ns10g_dp_en   = reg_ns10g_ctrl[3:2];
     assign ns10g_aes0_en = reg_ns10g_ctrl[8];
     assign ns10g_aes1_en = reg_ns10g_ctrl[9];
-    assign ns10g_inj     = reg_ns10g_ctrl[6];
+    assign ns10g_inj        = reg_ns10g_ctrl[6];
+    assign ns10g_gen_inline = reg_ns10g_ctrl[4];
+    assign ns10g_inj_mac    = reg_ns10g_ctrl[5];
+    assign ns10g_gap        = reg_ns10g_gap[15:0];
 
     logic aw_hs, w_hs, b_hs;
     logic [31:0] awaddr_r;
@@ -279,6 +291,7 @@ module netsec_regs (
             mdio_done_sticky <= 1'b0;
             reg_sfp10g_ctrl <= 32'h1;
             reg_ns10g_ctrl  <= 32'hC; // BIST, both dp_en=1
+            reg_ns10g_gap   <= 32'd1024;
         end else begin
             if (reg_ctrl[1])      reg_ctrl[1]      <= 1'b0;
             if (reg_ctrl[8])      reg_ctrl[8]      <= 1'b0;
@@ -345,6 +358,7 @@ module netsec_regs (
                     9'h05C: reg_rgmii_dly  <= s_axi_wdata;
                     9'h0DC: reg_sfp10g_ctrl <= s_axi_wdata;
                     9'h100: reg_ns10g_ctrl  <= s_axi_wdata;
+                    9'h1F8: reg_ns10g_gap   <= s_axi_wdata;
                     default: begin
                         if (awaddr_r[8:0] >= 9'h180 && awaddr_r[8:0] <= 9'h1AC)
                             pat_hi[(awaddr_r[8:0] - 9'h180) >> 2] <= s_axi_wdata;
@@ -576,6 +590,7 @@ module netsec_regs (
                     9'h17C: s_axi_rdata <= ns10g_aes1_ct[127:96];
                     9'h1B0: s_axi_rdata <= cnt_flow0;
                     9'h1B4: s_axi_rdata <= cnt_flow1;
+                    9'h1F8: s_axi_rdata <= reg_ns10g_gap;
                     default: begin
                         if (s_axi_araddr[8:0] >= 9'h180 && s_axi_araddr[8:0] <= 9'h1AC)
                             s_axi_rdata <= pat_hi[(s_axi_araddr[8:0] - 9'h180) >> 2];

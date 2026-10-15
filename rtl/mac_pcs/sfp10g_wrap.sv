@@ -9,6 +9,7 @@ module sfp10g_wrap #(
     input  logic        axi_clk,
     input  logic        rst_n,
     input  logic        tx_enable,
+    input  logic [15:0] gap_cycles,
     input  logic        nearend_loopback,
     input  logic [1:0]  tx_src,
 
@@ -97,7 +98,11 @@ module sfp10g_wrap #(
     logic [1:0]  rx_reset_req;
     logic        rx_dp_reset;
 
-    // 64B66B gearbox: 32 data cycles + 1 pause (64*33 = 66*32)
+    // 64B66B gearbox: 32 data cycles + 1 pause (64*33 = 66*32).
+    // The wizard example holds TXDATA on the cycle it samples TXSEQUENCE==32
+    // (PRBS enable drops when the counter is 31, so the following cycle holds).
+    // BUFGCE samples CE on the falling edge, so a combinational CE is low for
+    // the whole TXSEQUENCE==32 period and suppresses that rising edge.
     logic [6:0] txseq;
     always_ff @(posedge tx_clk_gt) begin
         if (!reset_tx_done)
@@ -107,11 +112,7 @@ module sfp10g_wrap #(
         else
             txseq <= txseq + 7'd1;
     end
-    logic tx_pause;
-    logic tx_ce_q;
-    always_ff @(posedge tx_clk_gt)
-        tx_ce_q <= (txseq != 7'd32);
-    assign tx_pause = (txseq == 7'd32);
+    wire tx_ce = (txseq != 7'd32);
 
     // Register RX gearbox outputs so BUFGCE (CE sampled on falling edge)
     // clocks the MAC on the cycle that still holds the valid word.
@@ -125,7 +126,7 @@ module sfp10g_wrap #(
         rx_v1_q   <= rx_dv[2] | rx_hv[2];
     end
 
-    BUFGCE u_tx_mac_clk  (.I(tx_clk_gt), .CE(tx_ce_q), .O(tx_clk));
+    BUFGCE u_tx_mac_clk  (.I(tx_clk_gt), .CE(tx_ce), .O(tx_clk));
     BUFGCE u_rx_mac_clk0 (.I(rx_clk_gt), .CE(rx_v0_q), .O(rx_clk0));
     BUFGCE u_rx_mac_clk1 (.I(rx_clk_gt), .CE(rx_v1_q), .O(rx_clk1));
 
@@ -175,6 +176,7 @@ module sfp10g_wrap #(
 
     pkt_gen_10g #(.PORT_ID(8'h01)) u_gen0 (
         .clk(tx_clk), .rst(rst_tx), .enable(tx_en_sync[0] & tx_active & ~tx_src[0]),
+        .gap_cycles(gap_cycles),
         .m_tdata(gen_tdata[0]), .m_tkeep(gen_tkeep[0]),
         .m_tvalid(gen_tvalid[0]), .m_tready(gen_tready[0]),
         .m_tlast(gen_tlast[0]), .m_tuser(gen_tuser[0]),
@@ -182,6 +184,7 @@ module sfp10g_wrap #(
     );
     pkt_gen_10g #(.PORT_ID(8'h02)) u_gen1 (
         .clk(tx_clk), .rst(rst_tx), .enable(tx_en_sync[1] & tx_active & ~tx_src[1]),
+        .gap_cycles(gap_cycles),
         .m_tdata(gen_tdata[1]), .m_tkeep(gen_tkeep[1]),
         .m_tvalid(gen_tvalid[1]), .m_tready(gen_tready[1]),
         .m_tlast(gen_tlast[1]), .m_tuser(gen_tuser[1]),
@@ -232,7 +235,7 @@ module sfp10g_wrap #(
             eth_mac_phy_10g #(
                 .DATA_WIDTH(64),
                 .PTP_TS_ENABLE(0),
-                .BIT_REVERSE(0),
+                .BIT_REVERSE(1),
                 .SCRAMBLER_DISABLE(0),
                 .PRBS31_ENABLE(0),
                 .TX_SERDES_PIPELINE(2),

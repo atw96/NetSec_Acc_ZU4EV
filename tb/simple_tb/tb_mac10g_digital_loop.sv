@@ -1,4 +1,5 @@
-// TB-4: eth_mac_phy_10g TX AXIS -> RX AXIS via serdes loop (same clock)
+// TB-4: eth_mac_phy_10g TX AXIS -> RX AXIS via serdes loop (same clock).
+// Strict: AXIS handshake, 8-beat frames, FCS-good, payload match after lock.
 `timescale 1ns / 1ps
 
 module tb_mac10g_digital_loop;
@@ -18,10 +19,16 @@ module tb_mac10g_digital_loop;
     logic [15:0] tag;
     logic        tsv;
 
-    integer sent, got, bad, errors;
+    integer sent, got, bad, errors, proto, beats;
+    integer locked_cycles;
+    logic   tx_v_d, tx_r_d, tx_l_d;
+    logic [63:0] tx_d_d;
+    logic [63:0] q_d [0:255];
+    integer q_w, q_r;
+    integer cmp_bad;
 
     pkt_gen_10g #(.PORT_ID(8'h11)) u_gen (
-        .clk(clk), .rst(rst), .enable(~rst),
+        .clk(clk), .rst(rst), .enable(~rst), .gap_cycles(16'd32),
         .m_tdata(tx_d), .m_tkeep(tx_k), .m_tvalid(tx_v), .m_tready(tx_r),
         .m_tlast(tx_l), .m_tuser(tx_u), .pulse_tx()
     );
@@ -59,11 +66,48 @@ module tb_mac10g_digital_loop;
 
     always_ff @(posedge clk) begin
         if (rst) begin
-            sent <= 0; got <= 0; bad <= 0;
+            sent <= 0; got <= 0; bad <= 0; proto <= 0; beats <= 0;
+            locked_cycles <= 0; cmp_bad <= 0;
+            tx_v_d <= 0; tx_r_d <= 0; tx_l_d <= 0; tx_d_d <= '0;
+            q_w <= 0; q_r <= 0;
         end else begin
-            if (tx_v && tx_r && tx_l) sent <= sent + 1;
-            if (rx_v && rx_l) got <= got + 1;
-            if (bad_f || bad_c) bad <= bad + 1;
+            tx_v_d <= tx_v;
+            tx_r_d <= tx_r;
+            tx_l_d <= tx_l;
+            tx_d_d <= tx_d;
+            if (lock) locked_cycles <= locked_cycles + 1;
+            else      locked_cycles <= 0;
+
+            // tvalid must stay high, and data/tlast stable, until tready.
+            if (tx_v_d && !tx_r_d) begin
+                if (!tx_v || tx_d !== tx_d_d || tx_l !== tx_l_d)
+                    proto <= proto + 1;
+            end
+            if (tx_v && tx_r) begin
+                q_d[q_w[7:0]] <= tx_d;
+                q_w <= q_w + 1;
+                if (tx_l) begin
+                    if (beats != 7) proto <= proto + 1;
+                    beats <= 0;
+                    if (locked_cycles > 64) sent <= sent + 1;
+                end else begin
+                    beats <= beats + 1;
+                end
+            end
+            // Pop every RX beat so the queue stays aligned through lock.
+            // Score FCS and payload only after lock has been stable.
+            if (rx_v) begin
+                if (q_r >= q_w || rx_d !== q_d[q_r[7:0]]) begin
+                    if (locked_cycles > 64) cmp_bad <= cmp_bad + 1;
+                end else if (locked_cycles > 64 && rx_u) begin
+                    cmp_bad <= cmp_bad + 1;
+                end
+                if (q_r < q_w) q_r <= q_r + 1;
+            end
+            if (locked_cycles > 64) begin
+                if (bad_f || bad_c) bad <= bad + 1;
+                if (rx_v && rx_l)   got <= got + 1;
+            end
         end
     end
 
@@ -71,13 +115,15 @@ module tb_mac10g_digital_loop;
         errors = 0;
         repeat (8) @(posedge clk);
         rst = 0;
-        repeat (20000) @(posedge clk);
-        $display("MAC10G digital loop sent=%0d got=%0d bad=%0d lock=%0d", sent, got, bad, lock);
-        // Digital serdes loop locks PCS; first frames may mark bad until descrambler aligns.
-        if (lock && (sent > 0 || got > 0))
+        repeat (40000) @(posedge clk);
+        $display("MAC10G digital loop sent=%0d got=%0d bad=%0d proto=%0d cmp=%0d lock=%0d",
+                 sent, got, bad, proto, cmp_bad, lock);
+        if (lock && bad == 0 && proto == 0 && cmp_bad == 0 && sent > 4 && got + 1 >= sent)
             $display("PASS: tb_mac10g_digital_loop");
-        else
+        else begin
             $display("FAIL: tb_mac10g_digital_loop");
+            errors = 1;
+        end
         $finish;
     end
 endmodule

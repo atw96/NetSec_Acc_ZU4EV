@@ -146,22 +146,27 @@ proc nsec_sfp10g_dump {} {
 proc nsec_sfp10g_check {} {
     nsec_wr 0xDC 0x1
     after 2000
-    set st  [nsec_rd 0xC0]
+    # Same order at both ends so each counter's 3 s window spans the same
+    # number of JTAG transactions. Peer TX/RX are adjacent.
     set tx0 [nsec_rd 0xC4]
+    set rx1 [nsec_rd 0xD4]
+    set tx1 [nsec_rd 0xD0]
     set rx0 [nsec_rd 0xC8]
     set bd0 [nsec_rd 0xCC]
-    set tx1 [nsec_rd 0xD0]
-    set rx1 [nsec_rd 0xD4]
     set bd1 [nsec_rd 0xD8]
+    set st  [nsec_rd 0xC0]
     puts "SFP10G t0 ST=$st TX0=$tx0 RX0=$rx0 BAD0=$bd0 TX1=$tx1 RX1=$rx1 BAD1=$bd1"
     after 3000
-    set st2  [nsec_rd 0xC0]
+    # Crossed pairs are read back-to-back. A JTAG read is long enough that
+    # sampling TX0 and RX1 several transactions apart moves the 3 s window
+    # by more than 0.1% of the frame count.
     set tx0b [nsec_rd 0xC4]
+    set rx1b [nsec_rd 0xD4]
+    set tx1b [nsec_rd 0xD0]
     set rx0b [nsec_rd 0xC8]
     set bd0b [nsec_rd 0xCC]
-    set tx1b [nsec_rd 0xD0]
-    set rx1b [nsec_rd 0xD4]
     set bd1b [nsec_rd 0xD8]
+    set st2  [nsec_rd 0xC0]
     puts "SFP10G t1 ST=$st2 TX0=$tx0b RX0=$rx0b BAD0=$bd0b TX1=$tx1b RX1=$rx1b BAD1=$bd1b"
     set stn 0
     set rx0n 0
@@ -179,6 +184,25 @@ proc nsec_sfp10g_check {} {
         puts "PASS: 10G on default system_top (block_lock + RX growing)"
     } else {
         puts "NEED_HW: expect 0xC0 bit8/bit9=1 and 0xC8/0xD4 growing (fiber SFP1<->SFP2)."
+    }
+    # Crossed fiber: port0 TX lands on port1 RX.
+    set tx0g 0
+    set tx1g 0
+    set bad0g 0
+    set bad1g 0
+    catch {set tx0g [expr {$tx0b - $tx0}]}
+    catch {set tx1g [expr {$tx1b - $tx1}]}
+    catch {set bad0g [expr {$bd0b - $bd0}]}
+    catch {set bad1g [expr {$bd1b - $bd1}]}
+    set close01 0
+    set close10 0
+    if {$tx0g > 0} { set close01 [expr {abs($rx1g - $tx0g) * 1000 <= $tx0g}] }
+    if {$tx1g > 0} { set close10 [expr {abs($rx0g - $tx1g) * 1000 <= $tx1g}] }
+    puts "SFP10G delta TX0=$tx0g RX1=$rx1g BAD1=$bad1g TX1=$tx1g RX0=$rx0g BAD0=$bad0g"
+    if {$bad0g == 0 && $bad1g == 0 && $close01 && $close10} {
+        puts "PASS: L5a FCS-good (BAD delta 0, RX within 0.1% of peer TX)"
+    } else {
+        puts "FAIL: L5a FCS-good not met"
     }
 }
 
@@ -387,13 +411,63 @@ proc nsec_ns10g_dump {} {
 }
 
 proc nsec_l5_test {} {
+    # GEN_INLINE: both pkt_gen drive the MACs, both RX paths are inspected.
     nsec_wr 0xDC 0x1
-    nsec_wr 0x100 0x5
+    nsec_wr 0x100 0x1C
     nsec_wr 0x00 0x101
+    after 20
+    set rx0a [nsec_rd 0x108]
+    set rx1a [nsec_rd 0x120]
+    set bd0a [nsec_rd 0x140]
+    set bd1a [nsec_rd 0x144]
+    set tx0a [nsec_rd 0xC4]
+    set tx1a [nsec_rd 0xD0]
     after 2000
-    nsec_sfp10g_dump
+    set rx0b [nsec_rd 0x108]
+    set rx1b [nsec_rd 0x120]
+    set bd0b [nsec_rd 0x140]
+    set bd1b [nsec_rd 0x144]
+    set tx0b [nsec_rd 0xC4]
+    set tx1b [nsec_rd 0xD0]
     nsec_ns10g_dump
-    puts "L5: INLINE+dp_en. Expect 0xC0 lock and 0x108/0x120 growing if fiber is crossed."
+    puts "L5b GEN_INLINE DP_RX0 $rx0a -> $rx0b  DP_RX1 $rx1a -> $rx1b"
+    puts "L5b BADRX $bd0a -> $bd0b / $bd1a -> $bd1b  MAC_TX $tx0a -> $tx0b / $tx1a -> $tx1b"
+    set g0 0
+    set g1 0
+    set b0 0
+    set b1 0
+    catch {set g0 [expr {$rx0b - $rx0a}]}
+    catch {set g1 [expr {$rx1b - $rx1a}]}
+    catch {set b0 [expr {$bd0b - $bd0a}]}
+    catch {set b1 [expr {$bd1b - $bd1a}]}
+    if {$g0 > 0 && $g1 > 0 && $b0 == 0 && $b1 == 0} {
+        puts "PASS: L5b GEN_INLINE datapath counted good frames"
+    } else {
+        puts "FAIL: L5b GEN_INLINE expect 0x108/0x120 growth and BADRX delta 0"
+    }
+}
+
+# GET frame out of MAC tx0, across the fiber, into port1 DPI.
+proc nsec_l5b_dpi {} {
+    nsec_wr 0xDC 0x1
+    nsec_wr 0x100 0x3C
+    after 20
+    set dpi [nsec_rd 0x134]
+    set mir [nsec_rd 0x130]
+    nsec_wr 0x100 0x7C
+    after 400
+    set dpi2 [nsec_rd 0x134]
+    set mir2 [nsec_rd 0x130]
+    puts "L5b-DPI DPI1 $dpi -> $dpi2  MIR1 $mir -> $mir2"
+    set dg 0
+    set mg 0
+    catch {set dg [expr {$dpi2 - $dpi}]}
+    catch {set mg [expr {$mir2 - $mir}]}
+    if {$dg >= 1 && $mg >= 1} {
+        puts "PASS: L5b-DPI fiber inject hit port1"
+    } else {
+        puts "FAIL: L5b-DPI expect 0x134 and 0x130 to grow"
+    }
 }
 
 # L5c without external 10G NIC: on-chip GET inject into DP_A (0x100[6] W1C).
@@ -425,11 +499,12 @@ proc nsec_l5c_test {} {
     }
 }
 
-puts "INFO: hw_jtag.tcl loaded. nsec_connect / nsec_program / nsec_dump / nsec_l0_test / nsec_sfp10g_check / nsec_l5_test / nsec_l5c_test / nsec_l5d_test"
+puts "INFO: hw_jtag.tcl loaded. nsec_connect / nsec_program / nsec_dump / nsec_l0_test / nsec_sfp10g_check / nsec_l5_test / nsec_l5b_dpi / nsec_l5c_test / nsec_l5d_test"
 
-# L5d: 1 s of BIST generator rate, then 1 s of INLINE datapath slope.
+# L5d: 1 s of back-to-back BIST, then 1 s of GEN_INLINE datapath slope.
 proc nsec_l5d_test {} {
     nsec_wr 0xDC 0x1
+    nsec_wr 0x1F8 0
     nsec_wr 0x100 0xC
     after 20
     set tx0a [nsec_rd 0xC4]
@@ -437,14 +512,15 @@ proc nsec_l5d_test {} {
     after 1000
     set tx0b [nsec_rd 0xC4]
     set rx0b [nsec_rd 0xC8]
-    nsec_wr 0x100 0x5
+    nsec_wr 0x100 0x1C
     after 20
     set dpa [nsec_rd 0x108]
     set fwa [nsec_rd 0x110]
     after 1000
     set dpb [nsec_rd 0x108]
     set fwb [nsec_rd 0x110]
-    puts "L5d BIST 1s MAC_TX0 $tx0a -> $tx0b  MAC_RX0 $rx0a -> $rx0b"
-    puts "L5d INLINE 1s DP_RX0 $dpa -> $dpb  FWD0 $fwa -> $fwb"
+    nsec_wr 0x1F8 1024
+    puts "L5d BIST gap0 1s MAC_TX0 $tx0a -> $tx0b  MAC_RX0 $rx0a -> $rx0b"
+    puts "L5d GEN_INLINE gap0 1s DP_RX0 $dpa -> $dpb  FWD0 $fwa -> $fwb"
     puts "PASS: L5d samples recorded"
 }

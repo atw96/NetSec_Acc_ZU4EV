@@ -97,9 +97,14 @@ if {[catch {nsec_sfp10g_check} e1]} {
     puts "NEED_HW: nsec_sfp10g_check: $e1"; flush stdout; exit 3
 }
 
-puts "===== L5b INLINE nsec_l5_test ====="; flush stdout
+puts "===== L5b GEN_INLINE nsec_l5_test ====="; flush stdout
 if {[catch {nsec_l5_test} e2]} {
     puts "NEED_HW: nsec_l5_test: $e2"; flush stdout; exit 3
+}
+
+puts "===== L5b-DPI fiber inject nsec_l5b_dpi ====="; flush stdout
+if {[catch {nsec_l5b_dpi} e2b]} {
+    puts "NEED_HW: nsec_l5b_dpi: $e2b"; flush stdout; exit 3
 }
 
 puts "===== L5c on-chip inject nsec_l5c_test ====="; flush stdout

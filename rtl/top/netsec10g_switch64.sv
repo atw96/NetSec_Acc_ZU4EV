@@ -21,6 +21,15 @@ module netsec10g_switch64 #(
     input  logic [127:0]          aes_key,
     input  logic [NUM_PAT*32-1:0] pats,
     input  logic                  inj_start,
+    input  logic                  gen_inline,
+    input  logic                  inj_mac,
+    output logic [63:0]           mac_inj_tdata,
+    output logic [7:0]            mac_inj_tkeep,
+    output logic                  mac_inj_tvalid,
+    input  logic                  mac_inj_tready,
+    output logic                  mac_inj_tlast,
+    output logic                  mac_inj_tuser,
+    output logic                  inj_busy_o,
 
     input  logic [63:0] rx0_tdata,
     input  logic [7:0]  rx0_tkeep,
@@ -63,7 +72,7 @@ module netsec10g_switch64 #(
     localparam [1:0] MODE_INLINE = 2'd1;
     localparam [1:0] MODE_LOOP   = 2'd2;
 
-    wire inspect = (mode == MODE_INLINE) || (mode == MODE_LOOP);
+    wire inspect = (mode == MODE_INLINE) || (mode == MODE_LOOP) || gen_inline;
 
     logic [63:0] inj_d;
     logic [7:0]  inj_k;
@@ -73,6 +82,7 @@ module netsec10g_switch64 #(
         .m_tdata(inj_d), .m_tkeep(inj_k), .m_tvalid(inj_v), .m_tready(inj_r),
         .m_tlast(inj_l), .m_tuser(inj_u), .busy(inj_busy)
     );
+    wire inj_to_dp = inj_busy && !inj_mac;
 
     logic [63:0] a_d, b_d, a_od, b_od;
     logic [7:0]  a_k, b_k, a_ok, b_ok;
@@ -81,13 +91,19 @@ module netsec10g_switch64 #(
     logic        a_ov, a_ol, a_ou, a_or;
     logic        b_ov, b_ol, b_ou, b_or;
 
-    assign a_d = inj_busy ? inj_d : rx0_tdata;
-    assign a_k = inj_busy ? inj_k : rx0_tkeep;
-    assign a_v = inspect && (inj_busy ? inj_v : rx0_tvalid);
-    assign a_l = inj_busy ? inj_l : rx0_tlast;
-    assign a_u = inj_busy ? inj_u : rx0_tuser;
-    assign inj_r      = inj_busy ? a_r : 1'b0;
-    assign rx0_tready = inj_busy ? 1'b0 : (inspect ? a_r : 1'b1);
+    assign a_d = inj_to_dp ? inj_d : rx0_tdata;
+    assign a_k = inj_to_dp ? inj_k : rx0_tkeep;
+    assign a_v = inspect && (inj_to_dp ? inj_v : rx0_tvalid);
+    assign a_l = inj_to_dp ? inj_l : rx0_tlast;
+    assign a_u = inj_to_dp ? inj_u : rx0_tuser;
+    assign inj_r      = inj_busy ? (inj_mac ? mac_inj_tready : a_r) : 1'b0;
+    assign rx0_tready = inj_to_dp ? 1'b0 : (inspect ? a_r : 1'b1);
+    assign mac_inj_tdata  = inj_d;
+    assign mac_inj_tkeep  = inj_k;
+    assign mac_inj_tvalid = inj_mac && inj_v;
+    assign mac_inj_tlast  = inj_l;
+    assign mac_inj_tuser  = inj_u;
+    assign inj_busy_o     = inj_busy;
 
     assign b_d = rx1_tdata;
     assign b_k = rx1_tkeep;
@@ -122,7 +138,10 @@ module netsec10g_switch64 #(
         tx1_tdata = '0; tx1_tkeep = '0; tx1_tvalid = 1'b0; tx1_tlast = 1'b0; tx1_tuser = 1'b0;
         a_or = 1'b1;
         b_or = 1'b1;
-        if (mode == MODE_INLINE) begin
+        if (gen_inline) begin
+            a_or = 1'b1;
+            b_or = 1'b1;
+        end else if (mode == MODE_INLINE) begin
             tx1_tdata = a_od; tx1_tkeep = a_ok; tx1_tvalid = a_ov; tx1_tlast = a_ol; tx1_tuser = a_ou;
             a_or = tx1_tready;
             tx0_tdata = b_od; tx0_tkeep = b_ok; tx0_tvalid = b_ov; tx0_tlast = b_ol; tx0_tuser = b_ou;

@@ -44,7 +44,7 @@ Copper inspect pipeline: parse → flow table → RFC1071 → Aho-Corasick DPI �
 | 10G MAC/PCS | 64-bit, `tx_clk_gt` 6.244 ns | Dual 10GBASE-R, Bank224, 125 MHz SiT9121 refclk |
 | 10G inspect | 64-bit @ `tx_clk_gt` | Line-rate datapath on the TX user clock; bad frames dropped in the RX async FIFO |
 
-Modes at `0x100[1:0]`: `0` BIST (default, PCS counters `0xC0`), `1` INLINE (SFP1↔SFP2 bump-in-the-wire), `2` LOOP, `3` DISABLE. Fiber INLINE still sees G5 (BAD≈RX). L5c inject bypasses MAC FCS.
+Modes at `0x100[1:0]`: `0` BIST (default, PCS counters `0xC0`), `1` INLINE (SFP1↔SFP2 bump-in-the-wire), `2` LOOP, `3` DISABLE. `[4]` GEN_INLINE keeps both `pkt_gen_10g` on the MACs and inspects both RX paths. `[5]` sends the on-chip GET out of MAC tx0 onto the fiber. Frame gap is `0x1F8` (default 1024 cycles; `0` is back-to-back).
 
 Do not constrain `mgtrefclk` as 156.25 MHz. Do not occupy GTH `X0Y6`/`X0Y7` (PCIe).
 
@@ -56,12 +56,12 @@ Do not constrain `mgtrefclk` as 156.25 MHz. Do not occupy GTH `X0Y6`/`X0Y7` (PCI
 |---|---|---|---|
 | Firewall / switching datapath | Architecture + flow table + IPS | Single-port loopback inline gateway | Simulation; board: see bringup log |
 | RTL + behavioral sim | All RTL | SystemVerilog + Icarus / XSim | Simulation PASS |
-| Timing / FPGA implementation | Full design | Vivado 2020.1 reports | 2026-10-14 `system_top`: WNS +0.255 ns / WHS +0.010 ns. WPWS −1.667 ns is IDELAYCTRL vs 200 MHz |
+| Timing / FPGA implementation | Full design | Vivado 2020.1 reports | 2026-10-15 `system_top`: WNS +0.092 ns / WHS +0.010 ns. WPWS −1.667 ns is the 200 MHz input |
 | TCP/IP offload | `tcpip_offload` | RFC 1071 checksum | Simulation + board `0xEDCB` |
 | Symmetric crypto | `crypto/aes` | AES-128 | NIST MMIO + **datapath** ciphertext readout |
 | Asymmetric crypto | `crypto/modexp` | 32-bit demo | Simulation + board `pow()` readout |
 | DPI | `dpi_engine` | Aho-Corasick 4×4B on copper; 64-bit 16×4B sliding match on 10G | Simulation + L0 GET hit; L5c on-chip GET |
-| 10G line-rate inspect | `netsec_dp64` | 64-bit parse, URAM flow table, pipelined AES, IPS on `tx_clk_gt` | Simulation; board L5c PASS. Fiber INLINE still drops bad frames (L5b) |
+| 10G line-rate inspect | `netsec_dp64` | 64-bit parse, URAM flow table, pipelined AES, IPS on `tx_clk_gt` | Simulation. Board 2026-10-15: L5a/L5b/L5b-DPI/L5c PASS; L5d slope recorded |
 | IPS | `ips_decision` | Decision pipeline | Simulation |
 | Domestic-FPGA notes | Docs only | [`docs/architecture.md`](docs/architecture.md) | Documentation |
 
@@ -70,14 +70,14 @@ Do not constrain `mgtrefclk` as 156.25 MHz. Do not occupy GTH `X0Y6`/`X0Y7` (PCI
 | Item | Value |
 |---|---|
 | Part | `xczu4ev-sfvc784-1-i` |
-| CLB LUTs | **76614 / 87840 (87.22%)** |
-| CLB Registers | **106412 / 175680 (60.57%)** |
+| CLB LUTs | **76411 / 87840 (86.99%)** |
+| CLB Registers | **106497 / 175680 (60.62%)** |
 | Block RAM Tile | **84 / 128 (65.63%)** |
 | URAM | **32 / 48 (66.67%)** |
 | DSP / MMCM | **4** DSP / 2 MMCM |
-| WNS / TNS | **+0.255 ns / 0** setup; **WHS +0.010 ns / 0** hold (2026-10-14 23:58). `tx_clk_gt` WNS +0.255 ns at 6.244 ns; copper `gtx_clk_u` WNS +0.360 ns. WPWS −1.667 ns is IDELAYCTRL REFCLK max period 3.333 ns vs 200 MHz |
-| Bitstream | `bitstream_output/system_top.bit` (6682656 bytes; not stored in git) |
-| Board | L0–L4 同前。**L5a** lock+RX，BAD 仍随 RX；**L5b** 数据面计数 0；**L5c PASS**（RX0=2 / DPI=1 / MIR=1 / FWD=1）；**L5d** BIST 1 s 窗口 MAC TX0 +153756、RX0 +77259，INLINE 数据面增量为 0 |
+| WNS / TNS | **+0.092 ns / 0** setup; **WHS +0.010 ns / 0** hold (2026-10-15). `tx_clk_gt` WNS +0.092 ns at 6.244 ns; copper `gtx_clk_u` WNS +0.217 ns. WPWS −1.667 ns is on `sys_clk_clk_p` |
+| Bitstream | `bitstream_output/system_top.bit` (6680244 bytes; not stored in git) |
+| Board | L0–L4 同前。2026-10-15：**L5a PASS**（3 s，BAD 增量 0，交叉口 RX 与对端 TX 差 269 / 51）；**L5b PASS**（2 s，DP RX0 +307843、RX1 +310855，BADRX 增量 0）；**L5b-DPI PASS**（`0x134`/`0x130` 各 +1）；**L5c PASS**（DPI0/MIR0 各 +1）；**L5d** gap=0 的 1 s 窗口 MAC TX0 +14454536，GEN_INLINE DP RX0 +14586237 |
 | Register access | JTAG-to-AXI (`scripts/hw_jtag.tcl`) + PS OCM bare-metal (`firmware/netsec_l3.elf`, A53 mailbox `NS3L`) |
 
 Build (Vivado 2020.1 on `PATH`, or `%XILINX_VIVADO%`):
@@ -100,6 +100,7 @@ nsec_csum_test
 nsec_modexp_test
 nsec_sfp10g_check
 nsec_l5_test
+nsec_l5b_dpi
 nsec_l5c_test
 nsec_l5d_test
 ```
@@ -175,6 +176,7 @@ nsec_connect
 nsec_program
 nsec_sfp10g_check
 nsec_l5_test
+nsec_l5b_dpi
 nsec_l5c_test
 nsec_l5d_test
 ```
@@ -187,15 +189,16 @@ nsec_l5d_test
 | `0xC4` / `0xC8` / `0xCC` | CNT_TX0 / RX0 / BAD0 | SFP1 / X0Y4 |
 | `0xD0` / `0xD4` / `0xD8` | CNT_TX1 / RX1 / BAD1 | SFP2 / X0Y5 |
 | `0xDC` | SFP10G_CTRL | `[0]` tx_enable (default 1; not bit 16 of `0x00`) |
-| `0x100` | NS10G_CTRL | `[1:0]` mode (0=BIST, 1=INLINE, 2=LOOP, 3=DISABLE); `[3:2]` dp_en; `[6]` inj W1C（片上 GET，L5c）；`[9:8]` aes_en |
+| `0x100` | NS10G_CTRL | `[1:0]` mode (0=BIST, 1=INLINE, 2=LOOP, 3=DISABLE); `[3:2]` dp_en; `[4]` GEN_INLINE; `[5]` inj out MAC tx0; `[6]` inj W1C（片上 GET，L5c）；`[9:8]` aes_en |
 | `0x104` | NS10G_ST | `[7:6]` sticky fold of the extra AES lanes (port1, port0) |
 | `0x180`–`0x1AC` | DPI_PAT4..15 | 4-byte patterns; pat4 default `504F5354` (`POST`) |
 | `0x1B0` / `0x1B4` | FLOW0 / FLOW1 | flow-insert counts |
 | `0x1B8`–`0x1F4` | PHIT | `{port1[15:0], port0[15:0]}` per pattern |
+| `0x1F8` | NS10G_GAP | `[15:0]` `pkt_gen_10g` 帧间空拍，默认 1024，写 0 为背靠背 |
 
 **2026-09-24 board result** (isolated `hw_sfp10g.tcl` **PASS**, image since removed): WNS **+1.963 ns**; STATUS=`0x2F07` (both `block_lock=1`, LOS=0); both RX counters grew over 3 s. BAD stayed close to RX.
 
-**2026-10-14 line-rate image**（WNS **+0.255 ns**，`system_top.bit` 6682656 B，`End of startup HIGH`）：L5a `0xC0=0x00000F07`，3 s 窗口 TX0 +461632 / RX0 +231820 / BAD0 +231826（BAD 仍跟踪 RX）。L5b `0x100=0x5` 后数据面计数全 0。**L5c PASS**（RX0=2 DPI=1 MIR=1 FWD=1）。L5d：`after 1000` 的 BIST 窗口 MAC TX0 +153756、RX0 +77259；随后 INLINE 窗口 DP RX0/FWD0 增量为 0。复测：`vivado -mode batch -source scripts/hw_l5_bringup.tcl`。Numbers: [`docs/bringup_log.md`](docs/bringup_log.md).
+**2026-10-15 image**（WNS **+0.092 ns**，`system_top.bit` 6680244 B，`End of startup HIGH`）：`0xC0=0x00000F07`。L5a 相邻采样 3 s：TX0 +461922 / RX1 +461653，TX1 +461611 / RX0 +461662，BAD0/BAD1 增量 0。L5b `0x100=0x1C` 的 2 s：DP RX0 +307843、RX1 +310855，BADRX 增量 0。L5b-DPI：`0x134` 与 `0x130` 各从 0 到 1。L5c：DPI0 与 MIR0 各 +1，CTRL 回到 `0x5`。L5d gap=`0` 的 1 s：MAC TX0 +14454536，随后 GEN_INLINE DP RX0 +14586237、FWD0 +14578512。复测：`vivado -mode batch -source scripts/hw_l5_bringup.tcl`。Numbers: [`docs/bringup_log.md`](docs/bringup_log.md).
 
 RX 64-bit AXIS enters `netsec_dp64` through a same-width async FIFO (`0x100` mode: BIST/INLINE/LOOP). Bad frames are dropped before inspection. Default mode is BIST so `nsec_sfp10g_check` still reads `0xC0`.
 

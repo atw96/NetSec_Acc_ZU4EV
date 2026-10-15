@@ -153,6 +153,8 @@ module netsec_top #(
     logic         pulse_sfp10g_tx1, pulse_sfp10g_rx1, pulse_sfp10g_bad1;
     logic [1:0]   ns10g_mode, ns10g_dp_en;
     logic         ns10g_aes0_en, ns10g_aes1_en, ns10g_inj;
+    logic         ns10g_gen_inline, ns10g_inj_mac;
+    logic [15:0]  ns10g_gap;
     logic [1:0]   ns10g_last0, ns10g_last1;
     logic         pulse_n0_rx, pulse_n0_tx, pulse_n0_fwd, pulse_n0_drop, pulse_n0_mir, pulse_n0_dpi;
     logic         pulse_n1_rx, pulse_n1_tx, pulse_n1_fwd, pulse_n1_drop, pulse_n1_mir, pulse_n1_dpi;
@@ -203,6 +205,9 @@ module netsec_top #(
         .ns10g_mode(ns10g_mode), .ns10g_dp_en(ns10g_dp_en),
         .ns10g_aes0_en(ns10g_aes0_en), .ns10g_aes1_en(ns10g_aes1_en),
         .ns10g_inj(ns10g_inj),
+        .ns10g_gen_inline(ns10g_gen_inline),
+        .ns10g_inj_mac(ns10g_inj_mac),
+        .ns10g_gap(ns10g_gap),
         .ns10g_last0(ns10g_last0), .ns10g_last1(ns10g_last1),
         .pulse_ns10g_rx0(pulse_n0_rx), .pulse_ns10g_tx0(pulse_n0_tx),
         .pulse_ns10g_fwd0(pulse_n0_fwd), .pulse_ns10g_drop0(pulse_n0_drop),
@@ -549,6 +554,12 @@ module netsec_top #(
     generate
         if (NETSEC_ENABLE_SFP10G) begin : g_sfp10g
             logic [1:0] mode_l, dpen_l;
+            logic [15:0] gap_l;
+            logic        gen_inl_l, inj_mac_l, inj_busy;
+            logic [63:0] mi_d, sw_tx0_d;
+            logic [7:0]  mi_k, sw_tx0_k;
+            logic        mi_v, mi_r, mi_l, mi_u;
+            logic        sw_tx0_v, sw_tx0_r, sw_tx0_l, sw_tx0_u;
             logic       aes0_l, aes1_l;
             logic [1:0] last0_l, last1_l;
             logic [1:0] tx_src;
@@ -585,6 +596,7 @@ module netsec_top #(
                 .axi_clk(axi_clk),
                 .rst_n(axi_por_n),
                 .tx_enable(sfp10g_tx_enable),
+                .gap_cycles(gap_l),
                 .nearend_loopback(loopback_mode == 3'd4),
                 .tx_src(tx_src),
                 .tx_clk(sfp_tx_clk), .rx_clk0(sfp_rx_clk0), .rx_clk1(sfp_rx_clk1),
@@ -633,6 +645,9 @@ module netsec_top #(
             end
             assign tx_rst_n = sfp_rst_tx_n && (soft_cnt == 4'h0);
 
+            netsec_level_cdc #(.WIDTH(16))  u_cdc_gap   (.src_clk(axi_clk), .src_level(ns10g_gap),     .dst_clk(sfp_tx_clk), .dst_rst_n(tx_rst_n), .dst_level(gap_l));
+            netsec_level_cdc #(.WIDTH(1))   u_cdc_ginl  (.src_clk(axi_clk), .src_level(ns10g_gen_inline), .dst_clk(sfp_tx_clk), .dst_rst_n(tx_rst_n), .dst_level(gen_inl_l));
+            netsec_level_cdc #(.WIDTH(1))   u_cdc_imac  (.src_clk(axi_clk), .src_level(ns10g_inj_mac), .dst_clk(sfp_tx_clk), .dst_rst_n(tx_rst_n), .dst_level(inj_mac_l));
             netsec_level_cdc #(.WIDTH(2))   u_cdc_nmode (.src_clk(axi_clk), .src_level(ns10g_mode),    .dst_clk(sfp_tx_clk), .dst_rst_n(tx_rst_n), .dst_level(mode_l));
             netsec_level_cdc #(.WIDTH(2))   u_cdc_ndpen (.src_clk(axi_clk), .src_level(ns10g_dp_en),   .dst_clk(sfp_tx_clk), .dst_rst_n(tx_rst_n), .dst_level(dpen_l));
             netsec_level_cdc #(.WIDTH(1))   u_cdc_naes0 (.src_clk(axi_clk), .src_level(ns10g_aes0_en), .dst_clk(sfp_tx_clk), .dst_rst_n(tx_rst_n), .dst_level(aes0_l));
@@ -644,7 +659,18 @@ module netsec_top #(
             netsec_level_cdc #(.WIDTH(32))  u_cdc_p3t   (.src_clk(axi_clk), .src_level(dpi_pat3),      .dst_clk(sfp_tx_clk), .dst_rst_n(tx_rst_n), .dst_level(p3_t));
             netsec_level_cdc #(.WIDTH(384)) u_cdc_phi   (.src_clk(axi_clk), .src_level(dpi_pat_hi),    .dst_clk(sfp_tx_clk), .dst_rst_n(tx_rst_n), .dst_level(pat_hi_t));
             assign pats_t = {pat_hi_t, p3_t, p2_t, p1_t, p0_t};
-            assign tx_src = (mode_l == 2'd1 || mode_l == 2'd2) ? 2'b11 : 2'b00;
+            assign tx_src[0] = (inj_mac_l && inj_busy) ? 1'b1
+                             : (gen_inl_l ? 1'b0
+                             : ((mode_l == 2'd1 || mode_l == 2'd2) ? 1'b1 : 1'b0));
+            assign tx_src[1] = gen_inl_l ? 1'b0
+                             : ((mode_l == 2'd1 || mode_l == 2'd2) ? 1'b1 : 1'b0);
+            assign tx0_d = (inj_mac_l && inj_busy) ? mi_d : sw_tx0_d;
+            assign tx0_k = (inj_mac_l && inj_busy) ? mi_k : sw_tx0_k;
+            assign tx0_v = (inj_mac_l && inj_busy) ? mi_v : sw_tx0_v;
+            assign tx0_l = (inj_mac_l && inj_busy) ? mi_l : sw_tx0_l;
+            assign tx0_u = (inj_mac_l && inj_busy) ? mi_u : sw_tx0_u;
+            assign sw_tx0_r = (inj_mac_l && inj_busy) ? 1'b0 : tx0_r;
+            assign mi_r     = (inj_mac_l && inj_busy) ? tx0_r : 1'b0;
 
             axis_async_fifo #(
                 .DEPTH(4096), .DATA_WIDTH(64), .KEEP_ENABLE(1), .KEEP_WIDTH(8),
@@ -695,12 +721,16 @@ module netsec_top #(
                 .mode(mode_l), .dp_en(dpen_l),
                 .aes0_en(aes0_l), .aes1_en(aes1_l), .aes_key(key_t),
                 .pats(pats_t), .inj_start(inj_start),
+                .gen_inline(gen_inl_l), .inj_mac(inj_mac_l),
+                .mac_inj_tdata(mi_d), .mac_inj_tkeep(mi_k), .mac_inj_tvalid(mi_v),
+                .mac_inj_tready(mi_r), .mac_inj_tlast(mi_l), .mac_inj_tuser(mi_u),
+                .inj_busy_o(inj_busy),
                 .rx0_tdata(f0_d), .rx0_tkeep(f0_k), .rx0_tvalid(f0_v),
                 .rx0_tready(f0_r), .rx0_tlast(f0_l), .rx0_tuser(f0_u),
                 .rx1_tdata(f1_d), .rx1_tkeep(f1_k), .rx1_tvalid(f1_v),
                 .rx1_tready(f1_r), .rx1_tlast(f1_l), .rx1_tuser(f1_u),
-                .tx0_tdata(tx0_d), .tx0_tkeep(tx0_k), .tx0_tvalid(tx0_v),
-                .tx0_tready(tx0_r), .tx0_tlast(tx0_l), .tx0_tuser(tx0_u),
+                .tx0_tdata(sw_tx0_d), .tx0_tkeep(sw_tx0_k), .tx0_tvalid(sw_tx0_v),
+                .tx0_tready(sw_tx0_r), .tx0_tlast(sw_tx0_l), .tx0_tuser(sw_tx0_u),
                 .tx1_tdata(tx1_d), .tx1_tkeep(tx1_k), .tx1_tvalid(tx1_v),
                 .tx1_tready(tx1_r), .tx1_tlast(tx1_l), .tx1_tuser(tx1_u),
                 .last_action0(last0_l), .last_action1(last1_l),

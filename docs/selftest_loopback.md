@@ -247,18 +247,22 @@ nsec_sfp10g_check
 ```tcl
 nsec_sfp10g_check
 nsec_l5_test
+nsec_l5b_dpi
 nsec_l5c_test
 nsec_l5d_test
 ```
 
-| 检查 | 期望 | 2026-10-14 实测 | 通过 |
-|------|------|-----------------|------|
-| L5a | `0xC0` 双口 lock，`0xC8`/`0xD4` 增长（BIST） | `0xC0=0x00000F07`；3 s 窗口 RX0 +231820，BAD0 +231826 | **部分**（BAD 跟踪 RX） |
-| L5b | `nsec_wr 0x100 0x5` 后 `0x108`/`0x120` 增长 | 数据面计数全 0；BADRX0/1=`0x001C86E6`/`0x001C88EB` | **部分** |
-| L5c | `nsec_wr 0x100 0x45` 后 `0x108`/`0x11C` 涨 | RX0=2 DPI0=1 MIR0=1 FWD0=1 | **是** |
-| L5d | 记录 BIST 与 INLINE 的 1 s 斜率 | BIST MAC TX0 +153756、RX0 +77259；INLINE DP RX0/FWD0 增量 0 | 已记录 |
+`0x100[4]` GEN_INLINE：两口 `pkt_gen_10g` 仍驱动 MAC，两口 RX 进检测，dp 输出只计数。`0x100[5]` 把片上 GET 改接到 MAC tx0，经光纤进对端。`0x1F8` 是帧间空拍（默认 1024，L5d 写 0）。L5a 把交叉口的 TX/RX 紧挨着读，避免 JTAG 读延迟把 3 s 窗口拉开超过 0.1%。
 
-G5：默认 `IGNORE_RX_RESET_REQ=1`，避免 `ber_mon` 在 ~10.25G 实速率下反复 RX 复位（H1）。
+| 检查 | 期望 | 2026-10-15 实测 | 通过 |
+|------|------|-----------------|------|
+| L5a | 3 s 内 BAD 增量 0，交叉口 RX 与对端 TX 差 ≤0.1% | `0xC0=0x00000F07`。TX0 +461922、RX1 +461653（差 −269）；TX1 +461611、RX0 +461662（差 +51）。BAD0/BAD1 增量 0（BAD1 绝对值保持 1） | **是** |
+| L5b | `0x100=0x1C` 后 `0x108`/`0x120` 增长，BADRX 增量 0 | 2 s：DP RX0 +307843、RX1 +310855。BADRX0 保持 0，BADRX1 保持 1 | **是** |
+| L5b-DPI | `0x100=0x3C` 再写 `0x7C` 后 `0x134`/`0x130` 增长 | DPI1 `0→1`，MIR1 `0→1` | **是** |
+| L5c | `0x100=0x45` 后 `0x108`/`0x11C` 涨 | DPI0 `0→1`，MIR0 `0→1`，CTRL 回到 `0x5`。RX0 `0x2A41→0x227E7`（此时 INLINE 会把已在光纤里的帧转回去） | **是** |
+| L5d | 记录 gap=0 的 1 s 斜率 | BIST MAC TX0 +14454536、RX0 +14461787。GEN_INLINE DP RX0 +14586237、FWD0 +14578512 | 已记录 |
+
+G5 根因见 `bringup_log.md` 2026-10-15 一节：发包器 AXIS 在 `tready` 已为 1 时把 `tlast` 清掉；TX `BUFGCE` 比 GT 的 sequence 32 暂停晚一拍；`BIT_REVERSE` 原先为 0。三处都已改。`IGNORE_RX_RESET_REQ=1` 仍保留。
 
 `B0 读 STATUS → L0 → L1 → MDIO ID → L2 → L3 → L4 → L5`。  
 实测数字写入 [`bringup_log.md`](bringup_log.md) 后，才允许在 README 将该级标为通过。
