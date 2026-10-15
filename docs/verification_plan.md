@@ -7,8 +7,8 @@
 | 单元级自检 Testbench | Icarus Verilog (`iverilog`/`vvp`) | ✅ 已在本仓库沙箱环境跑通（见各模块 tb 运行日志，附于 README） |
 | Python 黄金模型比对 | Python3 + pycryptodome + scapy | ✅ AES / Checksum / DPI 已建立黄金模型并比对 |
 | 报文级 UVM 环境 | QuestaSim / VCS / Xcelium（需商用许可） | ✅ ModelSim SE-64 2020.4 本机编译并跑通 smoke（0 UVM_ERROR），见 `tb/uvm_env/QUESTA_STATUS.md` |
-| Vivado 综合/实现 | Vivado 2020.1 | ✅ 2026-09-25 13:17 默认图（含 L5c 注帧）：WNS +0.307 ns，WHS +0.010 ns |
-| 板级环回/流量测试 | AXU4EVB-P + Wireshark | L0–L4 见 bringup_log；**L5a PASS**；L5b 部分；**L5c 片上注帧 PASS**（无外部 10G 网卡） |
+| Vivado 综合/实现 | Vivado 2020.1 | ✅ 2026-10-14 默认图：WNS +0.255 ns，WHS +0.010 ns；LUT 87.22% / FF 60.57% / BRAM 65.63% / URAM 66.67% |
+| 板级环回/流量测试 | AXU4EVB-P + Wireshark | L0–L4 见 bringup_log。2026-10-14：**L5a** lock 但 BAD≈RX；**L5b** 数据面 0；**L5c 片上注帧 PASS**；**L5d** BIST TX0 +153756 / RX0 +77259（1 s 窗口），INLINE 数据面增量 0 |
 
 ## UVM 环境扩展说明
 
@@ -40,9 +40,10 @@ ModelSim SE-64 2020.4 上编译并跑通 smoke（DPI 使用厂商预编译 `uvm_
 | `tb_modexp.sv` | 05b | 小规模模幂运算与 Python `pow(base, exp, mod)` 比对 |
 | `tb_ips_decision.sv` | 06 | 穷举决策表全部输入组合 |
 | `tb_sfp10g_axis_if.sv` | TB-1 | BIST/EXT TX mux |
-| `tb_netsec_axis_bridge.sv` | TB-2 | 64↔8 CDC 桥，好帧通过、坏帧丢弃 |
-| `tb_netsec10g_inline.sv` | TB-3 | INLINE 口0 GET → DPI/MIRROR |
+| `tb_dpi_match64.sv` | TB-2 | 64-bit 滑窗，跨拍 4 字节特征 |
+| `tb_dp64.sv` | TB-2b | 背靠背转发、GET 镜像、FIPS 密文、校验和计数 |
+| `tb_netsec10g_inline.sv` | TB-3 | BIST 不进检测；INLINE 注帧；LOOP 回帧 |
 | `tb_mac10g_digital_loop.sv` | TB-4 | `eth_mac_phy_10g` 数字 serdes 环，PCS lock |
-| `tb_ns10g_regs.sv` | TB-5 | `0x100` 块与 `0x00`–`0xDC` 不串扰 |
+| `tb_ns10g_regs.sv` | TB-5 | `0x100` 与 `0x180`–`0x1F4`，不与 `0x00`–`0xDC` 串扰 |
 
 2026-09-25 Icarus：TB-1/2/3 PASS；TB-4 PCS lock PASS；TB-5 复位默认值 PASS（AXI 写握手未完全打通，不得当作写通路板级通过）。

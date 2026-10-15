@@ -238,6 +238,31 @@ G5（RX BAD≈RX）处置：默认 `IGNORE_RX_RESET_REQ=1`，切断 `eth_phy_10g
 
 复测（不重启主机）：确认无僵尸 `hw_server` 后 `vivado -mode batch -source scripts/hw_l5_bringup.tcl`。独立图 2026-09-24 lock+RX 数字仍作对照。
 
+### 更换 10G 光模块后基线（2026-10-12）
+
+同一张 `bitstream_output/system_top_rxdly.bit`（6629312 B），`scripts/hw_l5_bringup.tcl`，`End of startup HIGH`，`hw_axi` 可见。
+
+| 检查 | 期望 | 实测 | 通过 |
+|------|------|------|------|
+| L5a BIST | lock + RX 涨，BAD 不随 RX | `0xC0=0x00000f07`（lock0/1、rxst0/1、tx/rx done，LOS=0，**high_ber=0**；旧图是 `0x2F07` 且 high_ber1=1）。3 s：TX0 `0x002c725e→0x00338b98`（+465210）RX0 `0x00164d8b→0x0019dddb`（+233552）BAD0 `0x00164f34→0x0019df83`（+233551）；TX1 `0x002c7ce4→0x003395bf` RX1 `0x001665d3→0x0019ed3e`（+231275）BAD1 `0x00166792→0x0019eee2`（+231248） | **部分**：lock/RX 涨且 high_ber 已清，但 BAD 增量仍等于 RX 增量 |
+| L5b INLINE | `0x108`/`0x120` 涨 | `0x100=0x5`。数据面 RX/TX/FWD/DROP/MIR/DPI 全 0。BADRX0/1=`0x00163362`/`0x00163fcd`，OVF/CSUM=0 | **部分**（坏帧仍被桥丢弃，G5 未消失） |
+| L5c 片上注帧 | `0x108`/`0x11C` 涨 | t0 全 0 → t1 RX0=2 DPI0=1 MIR0=1 FWD0=1，CTRL 回 `0x5` | **是** |
+
+结论：换上 10G 光模块后 high_ber 消失，但几乎每帧仍被标 bad_fcs/bad_frame，RX 仍约为对端 TX 的一半。G5 不在光模块，后续 64-bit 通路仍以片上注帧和数字环为功能判据，INLINE 光纤数字按当次读数记录。
+
+### 64-bit 线速图上板（2026-10-14）
+
+`bitstream_output/system_top.bit`（6682656 B）。实现报告：LUT 76614/87840（87.22%），FF 106412/175680（60.57%），BRAM 84/128（65.63%），URAM 32/48（66.67%），DSP 4。WNS +0.255 ns，WHS +0.010 ns；`tx_clk_gt`（6.244 ns）WNS +0.255 ns，铜口 `gtx_clk_u` WNS +0.360 ns。WPWS −1.667 ns 仍是 IDELAYCTRL 对 200 MHz 的最大周期检查。`End of startup HIGH`，`hw_axi` 可见。
+
+| 检查 | 期望 | 实测 | 通过 |
+|------|------|------|------|
+| L5a BIST | lock + RX 涨，BAD 不随 RX | `0xC0=0x00000F07`。`after 3000` 两侧：TX0 `0x002C6ACB→0x0033760B`（+461632）RX0 `0x001652A1→0x0019DC2D`（+231820）BAD0 `0x0016546A→0x0019DDFC`（+231826）；TX1 `0x002C751C→0x00338001`（+461541）RX1 `0x0016542A→0x0019DF70`（+232262）BAD1 `0x001655A1→0x0019E0E0`（+232255） | **部分**：lock/RX 涨，BAD 增量仍等于 RX 增量 |
+| L5b INLINE | `0x108`/`0x120` 涨 | `0x100=0x5`。N0/N1 的 RX/TX/FWD/DROP/MIR/DPI 全 0。FLOW0/1=0。BADRX0/1=`0x001C86E6`/`0x001C88EB`，OVF/CSUM=0 | **部分**（坏帧在进 `netsec_dp64` 前被丢掉） |
+| L5c 片上注帧 | `0x108`/`0x11C` 涨 | t0 全 0 → t1 RX0=2 DPI0=1 MIR0=1 FWD0=1，CTRL 回 `0x5` | **是** |
+| L5d 吞吐 | 记录 1 s 斜率 | BIST `0x100=0xC`，`after 1000`：MAC TX0 `0x00001798→0x00027034`（+153756）RX0 `0x00006F05→0x00019CD0`（+77259）。随后 INLINE `0x100=0x5`，`after 1000`：DP RX0 保持 2，FWD0 保持 1 | 斜率已记录；INLINE 数据面增量为 0 |
+
+`pkt_gen_10g` 每帧 64 B，帧间空 1024 个 `tx_clk_gt` 周期，所以 L5d 的 TX 增量是这台发生器的速率，不是灌满线速。
+
 ## PS 裸机对照
 
 | 检查 | 期望 | 实测 | 通过 |

@@ -2,7 +2,6 @@
 `timescale 1ns / 1ps
 
 module netsec_top #(
-    parameter bit NETSEC_ENABLE_SFP    = 1'b0,
     parameter bit NETSEC_ENABLE_SFP10G = 1'b1,
     parameter bit NETSEC_ENABLE_ILA    = 1'b1,
     parameter     RGMII_TX_USE_CLK90   = "TRUE"
@@ -130,6 +129,7 @@ module netsec_top #(
     logic         aes_dp_en, aes_dp_en_l, aes_dp_done, aes_dp_done_a;
     logic [127:0] aes_dp_ct, aes_dp_ct_a, aes_key_l;
     logic [31:0]  dpi_pat0, dpi_pat1, dpi_pat2, dpi_pat3;
+    logic [383:0] dpi_pat_hi;
     logic         mmcm_locked;
     logic [1:0]   mac_speed, last_action;
     logic         pulse_rx, pulse_tx, pulse_fwd, pulse_drop, pulse_mir, pulse_dpi;
@@ -158,6 +158,9 @@ module netsec_top #(
     logic         pulse_n1_rx, pulse_n1_tx, pulse_n1_fwd, pulse_n1_drop, pulse_n1_mir, pulse_n1_dpi;
     logic         pulse_n0_badrx, pulse_n1_badrx, pulse_n0_ovf, pulse_n1_ovf;
     logic         pulse_n0_csum, pulse_n1_csum;
+    logic         pulse_n0_flow, pulse_n1_flow;
+    logic [15:0]  pulse_n0_phit, pulse_n1_phit;
+    logic         pulse_n0_fold, pulse_n1_fold;
     logic         ns10g_aes0_done, ns10g_aes1_done;
     logic [127:0] ns10g_aes0_ct, ns10g_aes1_ct;
 
@@ -212,6 +215,10 @@ module netsec_top #(
         .pulse_ns10g_csum0(pulse_n0_csum), .pulse_ns10g_csum1(pulse_n1_csum),
         .ns10g_aes0_done(ns10g_aes0_done), .ns10g_aes1_done(ns10g_aes1_done),
         .ns10g_aes0_ct(ns10g_aes0_ct), .ns10g_aes1_ct(ns10g_aes1_ct),
+        .dpi_pat_hi(dpi_pat_hi),
+        .pulse_ns10g_flow0(pulse_n0_flow), .pulse_ns10g_flow1(pulse_n1_flow),
+        .pulse_ns10g_phit0(pulse_n0_phit), .pulse_ns10g_phit1(pulse_n1_phit),
+        .pulse_ns10g_fold0(pulse_n0_fold), .pulse_ns10g_fold1(pulse_n1_fold),
         .mac_speed(mac_speed), .last_action(last_action),
         .pulse_rx(pulse_rx_a), .pulse_tx(pulse_tx_a), .pulse_forward(pulse_fwd_a),
         .pulse_drop(pulse_drop_a), .pulse_mirror(pulse_mir_a), .pulse_dpi_hit(pulse_dpi_a),
@@ -547,30 +554,31 @@ module netsec_top #(
             logic [1:0] tx_src;
             logic       sfp_tx_clk, sfp_rx_clk0, sfp_rx_clk1;
             logic       sfp_rst_tx_n, sfp_rst_rx0_n, sfp_rst_rx1_n;
+            logic       tx_rst_n, soft_p;
+            logic [3:0] soft_cnt;
             logic [63:0] tx0_d, rx0_d, tx1_d, rx1_d;
             logic [7:0]  tx0_k, rx0_k, tx1_k, rx1_k;
             logic        tx0_v, tx0_r, tx0_l, tx0_u;
             logic        rx0_v, rx0_r, rx0_l, rx0_u;
             logic        tx1_v, tx1_r, tx1_l, tx1_u;
             logic        rx1_v, rx1_r, rx1_l, rx1_u;
-            logic [7:0]  br0_s_d, br0_m_d, br1_s_d, br1_m_d;
-            logic        br0_s_v, br0_s_r, br0_s_l, br0_m_v, br0_m_r, br0_m_l;
-            logic        br1_s_v, br1_s_r, br1_s_l, br1_m_v, br1_m_r, br1_m_l;
-            logic [7:0]  inj_d, sw0_d;
-            logic        inj_v, inj_r, inj_l, inj_busy, inj_start;
-            logic        sw0_v, sw0_r, sw0_l;
-            logic        p_badrx0, p_badrx1, p_ovf0, p_ovf1;
+            logic [63:0] f0_d, f1_d;
+            logic [7:0]  f0_k, f1_k;
+            logic        f0_v, f0_r, f0_l, f0_u;
+            logic        f1_v, f1_r, f1_l, f1_u;
+            logic        af0_bad, af0_ov, af1_bad, af1_ov;
+            logic        inj_start;
+            logic        p_ovf0, p_ovf1;
             logic        p_rx0, p_tx0, p_fwd0, p_drop0, p_mir0, p_dpi0;
             logic        p_rx1, p_tx1, p_fwd1, p_drop1, p_mir1, p_dpi1;
             logic        p_csum0, p_csum1;
-            logic [127:0] aes0_ct_l, aes1_ct_l;
+            logic        p_flow0, p_flow1, p_fold0, p_fold1;
+            logic [15:0] p_phit0, p_phit1;
+            logic [127:0] aes0_ct_l, aes1_ct_l, key_t;
             logic         aes0_done_l, aes1_done_l;
-
-            netsec_level_cdc #(.WIDTH(2)) u_cdc_nmode (.src_clk(axi_clk), .src_level(ns10g_mode), .dst_clk(logic_clk), .dst_rst_n(logic_rst_n), .dst_level(mode_l));
-            netsec_level_cdc #(.WIDTH(2)) u_cdc_ndpen (.src_clk(axi_clk), .src_level(ns10g_dp_en), .dst_clk(logic_clk), .dst_rst_n(logic_rst_n), .dst_level(dpen_l));
-            netsec_level_cdc #(.WIDTH(1)) u_cdc_naes0 (.src_clk(axi_clk), .src_level(ns10g_aes0_en), .dst_clk(logic_clk), .dst_rst_n(logic_rst_n), .dst_level(aes0_l));
-            netsec_level_cdc #(.WIDTH(1)) u_cdc_naes1 (.src_clk(axi_clk), .src_level(ns10g_aes1_en), .dst_clk(logic_clk), .dst_rst_n(logic_rst_n), .dst_level(aes1_l));
-            assign tx_src = (mode_l == 2'd1 || mode_l == 2'd2) ? 2'b11 : 2'b00;
+            logic [31:0]  p0_t, p1_t, p2_t, p3_t;
+            logic [383:0] pat_hi_t;
+            logic [511:0] pats_t;
 
             sfp10g_wrap u_sfp10g (
                 .freerun_clk(clk_50m),
@@ -614,97 +622,140 @@ module netsec_top #(
                 .pulse_bad1_axi(pulse_sfp10g_bad1)
             );
 
-            netsec_axis_bridge u_br0 (
-                .rx_mac_clk(sfp_rx_clk0), .rx_rst_n(sfp_rst_rx0_n),
-                .rx_mac_tdata(rx0_d), .rx_mac_tkeep(rx0_k), .rx_mac_tvalid(rx0_v),
-                .rx_mac_tready(rx0_r), .rx_mac_tlast(rx0_l), .rx_mac_tuser(rx0_u),
-                .tx_mac_clk(sfp_tx_clk), .tx_rst_n(sfp_rst_tx_n),
-                .tx_mac_tdata(tx0_d), .tx_mac_tkeep(tx0_k), .tx_mac_tvalid(tx0_v),
-                .tx_mac_tready(tx0_r), .tx_mac_tlast(tx0_l), .tx_mac_tuser(tx0_u),
-                .logic_clk(logic_clk), .logic_rst_n(rst_n_logic),
-                .s_tdata(br0_s_d), .s_tvalid(br0_s_v), .s_tready(br0_s_r), .s_tlast(br0_s_l),
-                .m_tdata(br0_m_d), .m_tvalid(br0_m_v), .m_tready(br0_m_r), .m_tlast(br0_m_l),
-                .pulse_badrx(p_badrx0), .pulse_ovf(p_ovf0)
+            netsec_pulse_cdc u_soft (
+                .src_clk(axi_clk), .src_rst_n(axi_por_n), .src_pulse(soft_reset),
+                .dst_clk(sfp_tx_clk), .dst_rst_n(sfp_rst_tx_n), .dst_pulse(soft_p)
             );
+            always_ff @(posedge sfp_tx_clk or negedge sfp_rst_tx_n) begin
+                if (!sfp_rst_tx_n)     soft_cnt <= '0;
+                else if (soft_p)       soft_cnt <= 4'hF;
+                else if (soft_cnt != 0) soft_cnt <= soft_cnt - 4'h1;
+            end
+            assign tx_rst_n = sfp_rst_tx_n && (soft_cnt == 4'h0);
+
+            netsec_level_cdc #(.WIDTH(2))   u_cdc_nmode (.src_clk(axi_clk), .src_level(ns10g_mode),    .dst_clk(sfp_tx_clk), .dst_rst_n(tx_rst_n), .dst_level(mode_l));
+            netsec_level_cdc #(.WIDTH(2))   u_cdc_ndpen (.src_clk(axi_clk), .src_level(ns10g_dp_en),   .dst_clk(sfp_tx_clk), .dst_rst_n(tx_rst_n), .dst_level(dpen_l));
+            netsec_level_cdc #(.WIDTH(1))   u_cdc_naes0 (.src_clk(axi_clk), .src_level(ns10g_aes0_en), .dst_clk(sfp_tx_clk), .dst_rst_n(tx_rst_n), .dst_level(aes0_l));
+            netsec_level_cdc #(.WIDTH(1))   u_cdc_naes1 (.src_clk(axi_clk), .src_level(ns10g_aes1_en), .dst_clk(sfp_tx_clk), .dst_rst_n(tx_rst_n), .dst_level(aes1_l));
+            netsec_level_cdc #(.WIDTH(128)) u_cdc_key   (.src_clk(axi_clk), .src_level(aes_key),       .dst_clk(sfp_tx_clk), .dst_rst_n(tx_rst_n), .dst_level(key_t));
+            netsec_level_cdc #(.WIDTH(32))  u_cdc_p0t   (.src_clk(axi_clk), .src_level(dpi_pat0),      .dst_clk(sfp_tx_clk), .dst_rst_n(tx_rst_n), .dst_level(p0_t));
+            netsec_level_cdc #(.WIDTH(32))  u_cdc_p1t   (.src_clk(axi_clk), .src_level(dpi_pat1),      .dst_clk(sfp_tx_clk), .dst_rst_n(tx_rst_n), .dst_level(p1_t));
+            netsec_level_cdc #(.WIDTH(32))  u_cdc_p2t   (.src_clk(axi_clk), .src_level(dpi_pat2),      .dst_clk(sfp_tx_clk), .dst_rst_n(tx_rst_n), .dst_level(p2_t));
+            netsec_level_cdc #(.WIDTH(32))  u_cdc_p3t   (.src_clk(axi_clk), .src_level(dpi_pat3),      .dst_clk(sfp_tx_clk), .dst_rst_n(tx_rst_n), .dst_level(p3_t));
+            netsec_level_cdc #(.WIDTH(384)) u_cdc_phi   (.src_clk(axi_clk), .src_level(dpi_pat_hi),    .dst_clk(sfp_tx_clk), .dst_rst_n(tx_rst_n), .dst_level(pat_hi_t));
+            assign pats_t = {pat_hi_t, p3_t, p2_t, p1_t, p0_t};
+            assign tx_src = (mode_l == 2'd1 || mode_l == 2'd2) ? 2'b11 : 2'b00;
+
+            axis_async_fifo #(
+                .DEPTH(4096), .DATA_WIDTH(64), .KEEP_ENABLE(1), .KEEP_WIDTH(8),
+                .ID_ENABLE(0), .DEST_ENABLE(0), .USER_ENABLE(1), .USER_WIDTH(1),
+                .FRAME_FIFO(1), .DROP_BAD_FRAME(1), .DROP_WHEN_FULL(1), .DROP_OVERSIZE_FRAME(1)
+            ) u_af0 (
+                .s_clk(sfp_rx_clk0), .s_rst(~sfp_rst_rx0_n),
+                .s_axis_tdata(rx0_d), .s_axis_tkeep(rx0_k), .s_axis_tvalid(rx0_v),
+                .s_axis_tready(rx0_r), .s_axis_tlast(rx0_l), .s_axis_tuser(rx0_u),
+                .s_axis_tid(8'd0), .s_axis_tdest(8'd0),
+                .m_clk(sfp_tx_clk), .m_rst(~tx_rst_n),
+                .m_axis_tdata(f0_d), .m_axis_tkeep(f0_k), .m_axis_tvalid(f0_v),
+                .m_axis_tready(f0_r), .m_axis_tlast(f0_l), .m_axis_tuser(f0_u),
+                .m_axis_tid(), .m_axis_tdest(),
+                .s_pause_req(1'b0), .s_pause_ack(), .m_pause_req(1'b0), .m_pause_ack(),
+                .s_status_depth(), .s_status_depth_commit(), .s_status_overflow(),
+                .s_status_bad_frame(), .s_status_good_frame(),
+                .m_status_depth(), .m_status_depth_commit(),
+                .m_status_overflow(af0_ov), .m_status_bad_frame(af0_bad), .m_status_good_frame()
+            );
+            axis_async_fifo #(
+                .DEPTH(4096), .DATA_WIDTH(64), .KEEP_ENABLE(1), .KEEP_WIDTH(8),
+                .ID_ENABLE(0), .DEST_ENABLE(0), .USER_ENABLE(1), .USER_WIDTH(1),
+                .FRAME_FIFO(1), .DROP_BAD_FRAME(1), .DROP_WHEN_FULL(1), .DROP_OVERSIZE_FRAME(1)
+            ) u_af1 (
+                .s_clk(sfp_rx_clk1), .s_rst(~sfp_rst_rx1_n),
+                .s_axis_tdata(rx1_d), .s_axis_tkeep(rx1_k), .s_axis_tvalid(rx1_v),
+                .s_axis_tready(rx1_r), .s_axis_tlast(rx1_l), .s_axis_tuser(rx1_u),
+                .s_axis_tid(8'd0), .s_axis_tdest(8'd0),
+                .m_clk(sfp_tx_clk), .m_rst(~tx_rst_n),
+                .m_axis_tdata(f1_d), .m_axis_tkeep(f1_k), .m_axis_tvalid(f1_v),
+                .m_axis_tready(f1_r), .m_axis_tlast(f1_l), .m_axis_tuser(f1_u),
+                .m_axis_tid(), .m_axis_tdest(),
+                .s_pause_req(1'b0), .s_pause_ack(), .m_pause_req(1'b0), .m_pause_ack(),
+                .s_status_depth(), .s_status_depth_commit(), .s_status_overflow(),
+                .s_status_bad_frame(), .s_status_good_frame(),
+                .m_status_depth(), .m_status_depth_commit(),
+                .m_status_overflow(af1_ov), .m_status_bad_frame(af1_bad), .m_status_good_frame()
+            );
+
             netsec_pulse_cdc u_cdc_inj (
                 .src_clk(axi_clk), .src_rst_n(axi_por_n), .src_pulse(ns10g_inj),
-                .dst_clk(logic_clk), .dst_rst_n(logic_rst_n), .dst_pulse(inj_start)
-            );
-            pkt_gen_bram u_inj10 (
-                .clk(logic_clk), .rst_n(rst_n_logic), .start(inj_start),
-                .m_tdata(inj_d), .m_tvalid(inj_v), .m_tready(inj_r),
-                .m_tlast(inj_l), .busy(inj_busy)
-            );
-            assign sw0_d = inj_busy ? inj_d : br0_s_d;
-            assign sw0_v = inj_busy ? inj_v : br0_s_v;
-            assign sw0_l = inj_busy ? inj_l : br0_s_l;
-            assign inj_r   = inj_busy ? sw0_r : 1'b0;
-            assign br0_s_r = inj_busy ? 1'b0 : sw0_r;
-
-            netsec_axis_bridge u_br1 (
-                .rx_mac_clk(sfp_rx_clk1), .rx_rst_n(sfp_rst_rx1_n),
-                .rx_mac_tdata(rx1_d), .rx_mac_tkeep(rx1_k), .rx_mac_tvalid(rx1_v),
-                .rx_mac_tready(rx1_r), .rx_mac_tlast(rx1_l), .rx_mac_tuser(rx1_u),
-                .tx_mac_clk(sfp_tx_clk), .tx_rst_n(sfp_rst_tx_n),
-                .tx_mac_tdata(tx1_d), .tx_mac_tkeep(tx1_k), .tx_mac_tvalid(tx1_v),
-                .tx_mac_tready(tx1_r), .tx_mac_tlast(tx1_l), .tx_mac_tuser(tx1_u),
-                .logic_clk(logic_clk), .logic_rst_n(rst_n_logic),
-                .s_tdata(br1_s_d), .s_tvalid(br1_s_v), .s_tready(br1_s_r), .s_tlast(br1_s_l),
-                .m_tdata(br1_m_d), .m_tvalid(br1_m_v), .m_tready(br1_m_r), .m_tlast(br1_m_l),
-                .pulse_badrx(p_badrx1), .pulse_ovf(p_ovf1)
+                .dst_clk(sfp_tx_clk), .dst_rst_n(tx_rst_n), .dst_pulse(inj_start)
             );
 
-            netsec10g_switch #(.FRAME_DEPTH(4096)) u_sw (
-                .clk(logic_clk), .rst_n(rst_n_logic),
+            netsec10g_switch64 u_sw (
+                .clk(sfp_tx_clk), .rst_n(tx_rst_n),
                 .mode(mode_l), .dp_en(dpen_l),
-                .aes_dp0_en(aes0_l), .aes_dp1_en(aes1_l), .aes_key(aes_key_l),
-                .dpi_pat0(dpi_pat0_l), .dpi_pat1(dpi_pat1_l),
-                .dpi_pat2(dpi_pat2_l), .dpi_pat3(dpi_pat3_l),
-                .rx0_tdata(sw0_d), .rx0_tvalid(sw0_v), .rx0_tready(sw0_r), .rx0_tlast(sw0_l),
-                .rx1_tdata(br1_s_d), .rx1_tvalid(br1_s_v), .rx1_tready(br1_s_r), .rx1_tlast(br1_s_l),
-                .tx0_tdata(br0_m_d), .tx0_tvalid(br0_m_v), .tx0_tready(br0_m_r), .tx0_tlast(br0_m_l),
-                .tx1_tdata(br1_m_d), .tx1_tvalid(br1_m_v), .tx1_tready(br1_m_r), .tx1_tlast(br1_m_l),
+                .aes0_en(aes0_l), .aes1_en(aes1_l), .aes_key(key_t),
+                .pats(pats_t), .inj_start(inj_start),
+                .rx0_tdata(f0_d), .rx0_tkeep(f0_k), .rx0_tvalid(f0_v),
+                .rx0_tready(f0_r), .rx0_tlast(f0_l), .rx0_tuser(f0_u),
+                .rx1_tdata(f1_d), .rx1_tkeep(f1_k), .rx1_tvalid(f1_v),
+                .rx1_tready(f1_r), .rx1_tlast(f1_l), .rx1_tuser(f1_u),
+                .tx0_tdata(tx0_d), .tx0_tkeep(tx0_k), .tx0_tvalid(tx0_v),
+                .tx0_tready(tx0_r), .tx0_tlast(tx0_l), .tx0_tuser(tx0_u),
+                .tx1_tdata(tx1_d), .tx1_tkeep(tx1_k), .tx1_tvalid(tx1_v),
+                .tx1_tready(tx1_r), .tx1_tlast(tx1_l), .tx1_tuser(tx1_u),
                 .last_action0(last0_l), .last_action1(last1_l),
                 .pulse_rx0(p_rx0), .pulse_tx0(p_tx0), .pulse_fwd0(p_fwd0),
                 .pulse_drop0(p_drop0), .pulse_mir0(p_mir0), .pulse_dpi0(p_dpi0),
                 .pulse_rx1(p_rx1), .pulse_tx1(p_tx1), .pulse_fwd1(p_fwd1),
                 .pulse_drop1(p_drop1), .pulse_mir1(p_mir1), .pulse_dpi1(p_dpi1),
                 .pulse_csum0(p_csum0), .pulse_csum1(p_csum1),
-                .aes_dp0_ct(aes0_ct_l), .aes_dp0_done(aes0_done_l),
-                .aes_dp1_ct(aes1_ct_l), .aes_dp1_done(aes1_done_l)
+                .pulse_ovf0(p_ovf0), .pulse_ovf1(p_ovf1),
+                .pulse_flow0(p_flow0), .pulse_flow1(p_flow1),
+                .pulse_phit0(p_phit0), .pulse_phit1(p_phit1),
+                .aes0_ct(aes0_ct_l), .aes0_done(aes0_done_l),
+                .aes1_ct(aes1_ct_l), .aes1_done(aes1_done_l),
+                .aes0_fold(p_fold0), .aes1_fold(p_fold1)
             );
 
-            netsec_level_cdc #(.WIDTH(2)) u_cdc_la0 (.src_clk(logic_clk), .src_level(last0_l), .dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_level(ns10g_last0));
-            netsec_level_cdc #(.WIDTH(2)) u_cdc_la1 (.src_clk(logic_clk), .src_level(last1_l), .dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_level(ns10g_last1));
-            netsec_level_cdc #(.WIDTH(128)) u_cdc_ct0 (.src_clk(logic_clk), .src_level(aes0_ct_l), .dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_level(ns10g_aes0_ct));
-            netsec_level_cdc #(.WIDTH(128)) u_cdc_ct1 (.src_clk(logic_clk), .src_level(aes1_ct_l), .dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_level(ns10g_aes1_ct));
-            netsec_pulse_cdc u_p_rx0  (.src_clk(logic_clk), .src_rst_n(rst_n_logic), .src_pulse(p_rx0),  .dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n0_rx));
-            netsec_pulse_cdc u_p_tx0  (.src_clk(logic_clk), .src_rst_n(rst_n_logic), .src_pulse(p_tx0),  .dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n0_tx));
-            netsec_pulse_cdc u_p_fw0  (.src_clk(logic_clk), .src_rst_n(rst_n_logic), .src_pulse(p_fwd0), .dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n0_fwd));
-            netsec_pulse_cdc u_p_dr0  (.src_clk(logic_clk), .src_rst_n(rst_n_logic), .src_pulse(p_drop0),.dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n0_drop));
-            netsec_pulse_cdc u_p_mi0  (.src_clk(logic_clk), .src_rst_n(rst_n_logic), .src_pulse(p_mir0), .dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n0_mir));
-            netsec_pulse_cdc u_p_dp0  (.src_clk(logic_clk), .src_rst_n(rst_n_logic), .src_pulse(p_dpi0), .dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n0_dpi));
-            netsec_pulse_cdc u_p_rx1  (.src_clk(logic_clk), .src_rst_n(rst_n_logic), .src_pulse(p_rx1),  .dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n1_rx));
-            netsec_pulse_cdc u_p_tx1  (.src_clk(logic_clk), .src_rst_n(rst_n_logic), .src_pulse(p_tx1),  .dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n1_tx));
-            netsec_pulse_cdc u_p_fw1  (.src_clk(logic_clk), .src_rst_n(rst_n_logic), .src_pulse(p_fwd1), .dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n1_fwd));
-            netsec_pulse_cdc u_p_dr1  (.src_clk(logic_clk), .src_rst_n(rst_n_logic), .src_pulse(p_drop1),.dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n1_drop));
-            netsec_pulse_cdc u_p_mi1  (.src_clk(logic_clk), .src_rst_n(rst_n_logic), .src_pulse(p_mir1), .dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n1_mir));
-            netsec_pulse_cdc u_p_dp1  (.src_clk(logic_clk), .src_rst_n(rst_n_logic), .src_pulse(p_dpi1), .dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n1_dpi));
-            netsec_pulse_cdc u_p_bd0  (.src_clk(logic_clk), .src_rst_n(rst_n_logic), .src_pulse(p_badrx0),.dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n0_badrx));
-            netsec_pulse_cdc u_p_bd1  (.src_clk(logic_clk), .src_rst_n(rst_n_logic), .src_pulse(p_badrx1),.dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n1_badrx));
-            netsec_pulse_cdc u_p_ov0  (.src_clk(logic_clk), .src_rst_n(rst_n_logic), .src_pulse(p_ovf0), .dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n0_ovf));
-            netsec_pulse_cdc u_p_ov1  (.src_clk(logic_clk), .src_rst_n(rst_n_logic), .src_pulse(p_ovf1), .dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n1_ovf));
-            netsec_pulse_cdc u_p_cs0  (.src_clk(logic_clk), .src_rst_n(rst_n_logic), .src_pulse(p_csum0),.dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n0_csum));
-            netsec_pulse_cdc u_p_cs1  (.src_clk(logic_clk), .src_rst_n(rst_n_logic), .src_pulse(p_csum1),.dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n1_csum));
-            netsec_pulse_cdc u_p_ad0  (.src_clk(logic_clk), .src_rst_n(rst_n_logic), .src_pulse(aes0_done_l),.dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(ns10g_aes0_done));
-            netsec_pulse_cdc u_p_ad1  (.src_clk(logic_clk), .src_rst_n(rst_n_logic), .src_pulse(aes1_done_l),.dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(ns10g_aes1_done));
+            netsec_level_cdc #(.WIDTH(2)) u_cdc_la0 (.src_clk(sfp_tx_clk), .src_level(last0_l), .dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_level(ns10g_last0));
+            netsec_level_cdc #(.WIDTH(2)) u_cdc_la1 (.src_clk(sfp_tx_clk), .src_level(last1_l), .dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_level(ns10g_last1));
+            netsec_level_cdc #(.WIDTH(128)) u_cdc_ct0 (.src_clk(sfp_tx_clk), .src_level(aes0_ct_l), .dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_level(ns10g_aes0_ct));
+            netsec_level_cdc #(.WIDTH(128)) u_cdc_ct1 (.src_clk(sfp_tx_clk), .src_level(aes1_ct_l), .dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_level(ns10g_aes1_ct));
+            netsec_pulse_cdc u_p_rx0  (.src_clk(sfp_tx_clk), .src_rst_n(tx_rst_n), .src_pulse(p_rx0),  .dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n0_rx));
+            netsec_pulse_cdc u_p_tx0  (.src_clk(sfp_tx_clk), .src_rst_n(tx_rst_n), .src_pulse(p_tx0),  .dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n0_tx));
+            netsec_pulse_cdc u_p_fw0  (.src_clk(sfp_tx_clk), .src_rst_n(tx_rst_n), .src_pulse(p_fwd0), .dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n0_fwd));
+            netsec_pulse_cdc u_p_dr0  (.src_clk(sfp_tx_clk), .src_rst_n(tx_rst_n), .src_pulse(p_drop0),.dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n0_drop));
+            netsec_pulse_cdc u_p_mi0  (.src_clk(sfp_tx_clk), .src_rst_n(tx_rst_n), .src_pulse(p_mir0), .dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n0_mir));
+            netsec_pulse_cdc u_p_dp0  (.src_clk(sfp_tx_clk), .src_rst_n(tx_rst_n), .src_pulse(p_dpi0), .dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n0_dpi));
+            netsec_pulse_cdc u_p_rx1  (.src_clk(sfp_tx_clk), .src_rst_n(tx_rst_n), .src_pulse(p_rx1),  .dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n1_rx));
+            netsec_pulse_cdc u_p_tx1  (.src_clk(sfp_tx_clk), .src_rst_n(tx_rst_n), .src_pulse(p_tx1),  .dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n1_tx));
+            netsec_pulse_cdc u_p_fw1  (.src_clk(sfp_tx_clk), .src_rst_n(tx_rst_n), .src_pulse(p_fwd1), .dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n1_fwd));
+            netsec_pulse_cdc u_p_dr1  (.src_clk(sfp_tx_clk), .src_rst_n(tx_rst_n), .src_pulse(p_drop1),.dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n1_drop));
+            netsec_pulse_cdc u_p_mi1  (.src_clk(sfp_tx_clk), .src_rst_n(tx_rst_n), .src_pulse(p_mir1), .dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n1_mir));
+            netsec_pulse_cdc u_p_dp1  (.src_clk(sfp_tx_clk), .src_rst_n(tx_rst_n), .src_pulse(p_dpi1), .dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n1_dpi));
+            netsec_pulse_cdc u_p_bd0  (.src_clk(sfp_tx_clk), .src_rst_n(tx_rst_n), .src_pulse(af0_bad),.dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n0_badrx));
+            netsec_pulse_cdc u_p_bd1  (.src_clk(sfp_tx_clk), .src_rst_n(tx_rst_n), .src_pulse(af1_bad),.dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n1_badrx));
+            netsec_pulse_cdc u_p_ov0  (.src_clk(sfp_tx_clk), .src_rst_n(tx_rst_n), .src_pulse(p_ovf0 | af0_ov), .dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n0_ovf));
+            netsec_pulse_cdc u_p_ov1  (.src_clk(sfp_tx_clk), .src_rst_n(tx_rst_n), .src_pulse(p_ovf1 | af1_ov), .dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n1_ovf));
+            netsec_pulse_cdc u_p_cs0  (.src_clk(sfp_tx_clk), .src_rst_n(tx_rst_n), .src_pulse(p_csum0),.dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n0_csum));
+            netsec_pulse_cdc u_p_cs1  (.src_clk(sfp_tx_clk), .src_rst_n(tx_rst_n), .src_pulse(p_csum1),.dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n1_csum));
+            netsec_pulse_cdc u_p_ad0  (.src_clk(sfp_tx_clk), .src_rst_n(tx_rst_n), .src_pulse(aes0_done_l),.dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(ns10g_aes0_done));
+            netsec_pulse_cdc u_p_ad1  (.src_clk(sfp_tx_clk), .src_rst_n(tx_rst_n), .src_pulse(aes1_done_l),.dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(ns10g_aes1_done));
+            netsec_pulse_cdc u_p_fl0  (.src_clk(sfp_tx_clk), .src_rst_n(tx_rst_n), .src_pulse(p_flow0),.dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n0_flow));
+            netsec_pulse_cdc u_p_fl1  (.src_clk(sfp_tx_clk), .src_rst_n(tx_rst_n), .src_pulse(p_flow1),.dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n1_flow));
+            netsec_pulse_cdc u_p_fo0  (.src_clk(sfp_tx_clk), .src_rst_n(tx_rst_n), .src_pulse(p_fold0),.dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n0_fold));
+            netsec_pulse_cdc u_p_fo1  (.src_clk(sfp_tx_clk), .src_rst_n(tx_rst_n), .src_pulse(p_fold1),.dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n1_fold));
+            for (genvar gi = 0; gi < 16; gi = gi + 1) begin : g_phit
+                netsec_pulse_cdc u_h0 (.src_clk(sfp_tx_clk), .src_rst_n(tx_rst_n), .src_pulse(p_phit0[gi]), .dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n0_phit[gi]));
+                netsec_pulse_cdc u_h1 (.src_clk(sfp_tx_clk), .src_rst_n(tx_rst_n), .src_pulse(p_phit1[gi]), .dst_clk(axi_clk), .dst_rst_n(axi_por_n), .dst_pulse(pulse_n1_phit[gi]));
+            end
 
             assign sfp_link_status   = sfp10g_lock0 & sfp10g_lock1;
             assign sfp_status_vector = {2'd0, sfp10g_hber1, sfp10g_hber0,
                                         sfp10g_rxst1, sfp10g_rxst0,
                                         sfp10g_lock1, sfp10g_lock0,
                                         sfp2_los, sfp1_los, 6'd1};
-        end else if (NETSEC_ENABLE_SFP) begin : g_gt
+        end else begin : g_sfp10g_off
             assign sfp10g_tx_done = 1'b0;
             assign sfp10g_rx_done = 1'b0;
             assign sfp10g_lock0   = 1'b0;
@@ -726,71 +777,17 @@ module netsec_top #(
             assign pulse_n0_badrx = 1'b0; assign pulse_n1_badrx = 1'b0;
             assign pulse_n0_ovf = 1'b0; assign pulse_n1_ovf = 1'b0;
             assign pulse_n0_csum = 1'b0; assign pulse_n1_csum = 1'b0;
+            assign pulse_n0_flow = 1'b0; assign pulse_n1_flow = 1'b0;
+            assign pulse_n0_phit = '0; assign pulse_n1_phit = '0;
+            assign pulse_n0_fold = 1'b0; assign pulse_n1_fold = 1'b0;
             assign ns10g_last0 = 2'b00; assign ns10g_last1 = 2'b00;
             assign ns10g_aes0_done = 1'b0; assign ns10g_aes1_done = 1'b0;
             assign ns10g_aes0_ct = 128'd0; assign ns10g_aes1_ct = 128'd0;
-            assign gthtxn_o[1] = 1'b0;
-            assign gthtxp_o[1] = 1'b0;
-            gt_prbs_wrap #(.ENABLE(1'b1)) u_gt (
-                .freerun_clk(clk_50m),
-                .rst_n(axi_por_n),
-                .nearend_loopback(loopback_mode_l == 3'd4),
-                .mgtrefclk_p(mgtrefclk_p),
-                .mgtrefclk_n(mgtrefclk_n),
-                .gthrxn_in(gthrxn_i[0]),
-                .gthrxp_in(gthrxp_i[0]),
-                .gthtxn_out(gthtxn_o[0]),
-                .gthtxp_out(gthtxp_o[0]),
-                .sfp_tx_dis(sfp_tx_dis),
-                .sfp1_los(sfp1_los),
-                .sfp2_los(sfp2_los),
-                .prbs_match(),
-                .link_status(sfp_link_status),
-                .status_vector(sfp_status_vector)
-            );
-        end else begin : g_sfp_stub
-            assign sfp10g_tx_done = 1'b0;
-            assign sfp10g_rx_done = 1'b0;
-            assign sfp10g_lock0   = 1'b0;
-            assign sfp10g_lock1   = 1'b0;
-            assign sfp10g_rxst0   = 1'b0;
-            assign sfp10g_rxst1   = 1'b0;
-            assign sfp10g_hber0   = 1'b0;
-            assign sfp10g_hber1   = 1'b0;
-            assign pulse_sfp10g_tx0  = 1'b0;
-            assign pulse_sfp10g_rx0  = 1'b0;
-            assign pulse_sfp10g_bad0 = 1'b0;
-            assign pulse_sfp10g_tx1  = 1'b0;
-            assign pulse_sfp10g_rx1  = 1'b0;
-            assign pulse_sfp10g_bad1 = 1'b0;
-            assign pulse_n0_rx = 1'b0; assign pulse_n0_tx = 1'b0; assign pulse_n0_fwd = 1'b0;
-            assign pulse_n0_drop = 1'b0; assign pulse_n0_mir = 1'b0; assign pulse_n0_dpi = 1'b0;
-            assign pulse_n1_rx = 1'b0; assign pulse_n1_tx = 1'b0; assign pulse_n1_fwd = 1'b0;
-            assign pulse_n1_drop = 1'b0; assign pulse_n1_mir = 1'b0; assign pulse_n1_dpi = 1'b0;
-            assign pulse_n0_badrx = 1'b0; assign pulse_n1_badrx = 1'b0;
-            assign pulse_n0_ovf = 1'b0; assign pulse_n1_ovf = 1'b0;
-            assign pulse_n0_csum = 1'b0; assign pulse_n1_csum = 1'b0;
-            assign ns10g_last0 = 2'b00; assign ns10g_last1 = 2'b00;
-            assign ns10g_aes0_done = 1'b0; assign ns10g_aes1_done = 1'b0;
-            assign ns10g_aes0_ct = 128'd0; assign ns10g_aes1_ct = 128'd0;
-            sfp_pcs_wrap #(.ENABLE(1'b0)) u_sfp (
-                .freerun_clk(logic_clk),
-                .rst_n(rst_n_logic),
-                .gt_loopback_en(loopback_mode_l == 3'd4),
-                .mgtrefclk_p(mgtrefclk_p),
-                .mgtrefclk_n(mgtrefclk_n),
-                .gthrxn_in(gthrxn_i[0]),
-                .gthrxp_in(gthrxp_i[0]),
-                .gthtxn_out(gthtxn_o[0]),
-                .gthtxp_out(gthtxp_o[0]),
-                .sfp_tx_dis(sfp_tx_dis),
-                .sfp1_los(sfp1_los),
-                .sfp2_los(sfp2_los),
-                .sfp_link_status(sfp_link_status),
-                .sfp_status_vector(sfp_status_vector)
-            );
-            assign gthtxn_o[1] = 1'b0;
-            assign gthtxp_o[1] = 1'b0;
+            assign sfp_link_status = 1'b0;
+            assign sfp_status_vector = 16'd0;
+            assign gthtxn_o = 2'b00;
+            assign gthtxp_o = 2'b00;
+            assign sfp_tx_dis = 1'b0;
         end
     endgenerate
 
@@ -826,11 +823,6 @@ module netsec_top #(
                 .probe2(probe_rx),
                 .probe3(probe_tx),
                 .probe4(probe_st)
-            );
-
-            ila_rgmii u_ila_rgmii (
-                .clk   (rgmii_rxc),
-                .probe0(5'b0)
             );
         end
     endgenerate

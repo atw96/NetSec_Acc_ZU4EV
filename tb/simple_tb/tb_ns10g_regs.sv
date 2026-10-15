@@ -11,6 +11,9 @@ module tb_ns10g_regs;
     logic [3:0]  wstrb;
     logic [1:0]  bresp, rresp;
     logic [1:0]  mode, dpen;
+    logic [383:0] pat_hi;
+    logic        p_flow0;
+    logic [15:0] p_phit0;
 
     assign wstrb = 4'hF;
     assign bready = 1;
@@ -54,6 +57,10 @@ module tb_ns10g_regs;
         .pulse_ns10g_csum0(1'b0), .pulse_ns10g_csum1(1'b0),
         .ns10g_aes0_done(1'b0), .ns10g_aes1_done(1'b0),
         .ns10g_aes0_ct(128'hA), .ns10g_aes1_ct(128'hB),
+        .dpi_pat_hi(pat_hi),
+        .pulse_ns10g_flow0(p_flow0), .pulse_ns10g_flow1(1'b0),
+        .pulse_ns10g_phit0(p_phit0), .pulse_ns10g_phit1(16'd0),
+        .pulse_ns10g_fold0(1'b0), .pulse_ns10g_fold1(1'b0),
         .mac_speed(2'b10), .last_action(2'b00),
         .pulse_rx(1'b0), .pulse_tx(1'b0), .pulse_forward(1'b0),
         .pulse_drop(1'b0), .pulse_mirror(1'b0), .pulse_dpi_hit(1'b0),
@@ -64,46 +71,26 @@ module tb_ns10g_regs;
 
     task wr;
         input [31:0] a, d;
-        integer t;
         begin
-            awaddr = a; wdata = d;
-            awvalid = 1; wvalid = 1;
-            t = 0;
-            while (!(awready && wready) && t < 20) begin
-                @(posedge clk);
-                t = t + 1;
-            end
             @(posedge clk);
-            awvalid = 0; wvalid = 0;
-            t = 0;
-            while (!bvalid && t < 20) begin
-                @(posedge clk);
-                t = t + 1;
-            end
-            @(posedge clk);
+            awaddr <= a; wdata <= d; awvalid <= 1; wvalid <= 1;
+            do @(posedge clk); while (!(awready && wready));
+            awvalid <= 1'b0; wvalid <= 1'b0;
+            do @(posedge clk); while (!bvalid);
         end
     endtask
 
     task rd;
         input  [31:0] a;
         output [31:0] d;
-        integer t;
         begin
-            araddr = a; arvalid = 1;
-            t = 0;
-            while (!arready && t < 20) begin
-                @(posedge clk);
-                t = t + 1;
-            end
             @(posedge clk);
-            arvalid = 0;
-            t = 0;
-            while (!rvalid && t < 20) begin
-                @(posedge clk);
-                t = t + 1;
-            end
+            while (rvalid) @(posedge clk);
+            araddr <= a; arvalid <= 1;
+            do @(posedge clk); while (!arready);
+            arvalid <= 1'b0;
+            do @(posedge clk); while (!rvalid);
             d = rdata;
-            @(posedge clk);
         end
     endtask
 
@@ -111,6 +98,7 @@ module tb_ns10g_regs;
     logic [31:0] v, v0;
     initial begin
         errors = 0;
+        p_flow0 = 0; p_phit0 = 0;
         awvalid = 0; wvalid = 0; arvalid = 0; awaddr = 0; wdata = 0; araddr = 0;
         repeat (4) @(posedge clk);
         rst_n = 1;
@@ -125,9 +113,24 @@ module tb_ns10g_regs;
         if (v[1:0] != 2'b11) errors++;
         rd(32'h170, v);
         if (v != 32'hB) errors++;
+        wr(32'h040, 32'hAABBCCDD);
+        rd(32'h040, v);
+        if (v != 32'hAABBCCDD) errors++;
         wr(32'h100, 32'h5);
         rd(32'h100, v);
-        $display("NS10G_CTRL after wr %08x mode=%0d", v, mode);
+        if (v[3:0] != 4'h5) errors++;
+        rd(32'h180, v);
+        if (v != 32'h504F5354) errors++;
+        wr(32'h184, 32'h11223344);
+        rd(32'h184, v);
+        if (v != 32'h11223344) errors++;
+        @(posedge clk); p_flow0 <= 1'b1; p_phit0 <= 16'h1;
+        @(posedge clk); p_flow0 <= 1'b0; p_phit0 <= 16'h0;
+        repeat (2) @(posedge clk);
+        rd(32'h1B0, v);
+        if (v != 32'd1) errors++;
+        rd(32'h1B8, v);
+        if (v[15:0] != 16'd1) errors++;
         if (errors == 0)
             $display("PASS: tb_ns10g_regs");
         else

@@ -14,10 +14,10 @@
 │  铜口 1G：  GEM3(RJ45) ↔ 网线 ↔ JL2121 RGMII MAC → netsec_datapath (swap=1, 2048)     │
 │                                                                                      │
 │  光口 10G： SFP1 X0Y4 ─┐                                                             │
-│             SFP2 X0Y5 ─┴→ sfp10g_wrap (64b ~156 MHz)                                 │
-│                           → netsec_axis_bridge (64↔8 CDC, DROP_BAD/OVF)               │
-│                           → netsec10g_switch (BIST / INLINE / LOOP)                   │
-│                           → 2× netsec_datapath (swap=0, 4096) @ 8-bit 125 MHz         │
+│             SFP2 X0Y5 ─┴→ sfp10g_wrap (64b，tx_clk_gt 6.244 ns)                      │
+│                           → axis_async_fifo 64↔64（丢坏帧/超长帧）进入 sfp_tx_clk      │
+│                           → netsec10g_switch64 (BIST / INLINE / LOOP / DISABLE)      │
+│                           → 2× netsec_dp64（64-bit 同钟；口0 三路 AES，口1 两路）       │
 │                           0x100[6] 可片上注入 GET（L5c，不经 MAC/G5）                   │
 │                                                                                      │
 │  共用检测核：[1] Parser [2] Flow table [3] RFC1071 [4] AC-DPI [5] AES/modexp [6] IPS │
@@ -45,7 +45,7 @@
 - **网口2（RJ45）**：挂 **PL Bank66 RGMII** ↔ JL2121 PHY（全部引脚见 `eth.xdc` / `board_pinout.md`）。  
   本工程使用开源 MIT `verilog-ethernet` 1G RGMII MAC（**不使用需付费 license 的 TEMAC**）。
 - **2× SFP+**：GTH Bank224 Lane0/1（SFP1=`X0Y4`，SFP2=`X0Y5`），参考时钟 **125 MHz** `V6/V5`（SiT9121，不是 156.25 MHz 晶振）。  
-  默认 `system_top` 例化双口 10G GT+MAC（`sfp10g_wrap`）以及 `netsec10g_switch`（2×datapath，`0x100` INLINE/LOOP/BIST）。吞吐为 8-bit@125 MHz 降速检。独立 `system_top_sfp10g.bit` 仍可对照 BIST。见 `docs/selftest_loopback.md`。
+  默认 `system_top` 例化双口 10G GT+MAC（`sfp10g_wrap`）以及 `netsec10g_switch64`（2× `netsec_dp64`，与 TX 用户时钟同域）。坏帧在 RX 异步 FIFO 丢掉。见 `docs/selftest_loopback.md`。
 - **铜口**：单 PL RGMII，数据面仍以环回转发（FORWARD / DROP / MIRROR）验证。**光口 INLINE**：SFP1↔SFP2 光纤交叉可做双口穿透检测（线速帧受 G5 FCS 影响；片上注帧 L5c 已过）。
 
 旧模板 `constraints/axu4ev_template.xdc` **已废弃**（含占位符与错误描述）。
@@ -77,20 +77,14 @@
 | [5a] AES-128 加解密 | ✅ RTL 已实现（迭代 10 轮；MMIO + 数据面 CTRL[12]，默认关） | NIST 仿真 + JTAG MMIO/`0xB0` 数据面回读 |
 | [5b] RSA 模幂运算 | ⚠️ 32bit Demo（square-and-multiply，非 Montgomery）；AXI 自检已上板 | 仿真 + JTAG `pow()` 回读 |
 | [6] IPS 决策引擎 | ✅ RTL 已实现（组合+流水线决策） | Icarus Verilog 自检 Testbench |
-| MAC/PCS | ✅ 开源 MIT `verilog-ethernet` RGMII MAC；默认图另含双口 10G `sfp10g_wrap` + `netsec10g_switch`（`NETSEC_ENABLE_SFP10G=1`）。1G PRBS 与 10G 互斥 | 综合/比特流已出；铜口时序见 L2；10G PCS 计数 `0xC0`，检测通路 `0x100` |
+| MAC/PCS | ✅ 开源 MIT `verilog-ethernet` RGMII MAC；默认图另含双口 10G `sfp10g_wrap` + `netsec10g_switch64`（`NETSEC_ENABLE_SFP10G=1`） | 2026-10-14 实现报告；10G PCS 计数 `0xC0`，检测通路 `0x100` |
 | 报文级 UVM 验证环境 | ✅ QuestaSim 2020.4 本机 `vlog` + smoke `run -all`（0 ERROR） | `tb/uvm_env/QUESTA_STATUS.md` |
-| Vivado 综合时序/资源报告 | ✅ 已生成 | LUT 60515 (68.89%) / FF 88763 / BRAM 15.5 / DSP 4；**WNS +0.307 ns** / **WHS +0.010 ns**（2026-09-25 含 L5c 注帧）；`docs/timing_report/` |
-| 板级环回/上板验证 | ✅ 以 `docs/bringup_log.md` 实测栏为准 | L0(AC)/L3/PC/DPI/AES-DP/CSUM/MODEXP/IBERT 近端已填；10G 光纤互环 lock+RX **PASS**。**L5a PASS**；L5b 部分（G5）；**L5c 片上 GET 注帧 PASS**（RX0=2/DPI=1） |
+| Vivado 综合时序/资源报告 | ✅ 已生成 | LUT 76614 (87.22%) / FF 106412 (60.57%) / BRAM 84 (65.63%) / URAM 32 (66.67%) / DSP 4；**WNS +0.255 ns** / **WHS +0.010 ns**（2026-10-14）；`docs/timing_report/` |
+| 板级环回/上板验证 | ✅ 以 `docs/bringup_log.md` 实测栏为准 | L0–L4 同前。2026-10-14：**L5a** lock+RX 但 BAD 跟踪 RX；**L5b** 数据面 0；**L5c PASS**（RX0=2/DPI=1/MIR=1/FWD=1）；**L5d** BIST 1 s 窗口 TX0 +153756、RX0 +77259，INLINE 数据面增量 0 |
 
 ### 资源映射核对（`flow_table` / 帧缓存）
 
-当前 `HASH_BITS=4`（64 项）下综合结果：
-
-- `u_frame_fifo/mem_reg` → **Block RAM**（RAMB18）
-- `u_flow_table/key_mem` → **分布式 LUTRAM**（RAM64M8×60），未进 BRAM
-- `age_mem` / `state_mem` → 溶解为寄存器（表深过小）
-
-若需强制流表进 BRAM，增大 `HASH_BITS`（例如 ≥8）并保留 `(* ram_style="block" *)`；当前小表优先 LUTRAM 更省 BRAM、综合更快。
+当前铜口 `u_flow_table` 仍是 `HASH_BITS=4`（64 项，LUTRAM）。10G 通路是 `u_flow_table_uram`，`HASH_BITS=13`（每口 4 路 × 8K）。2026-10-14 实现后整片 **URAM 32/48**，帧 FIFO 与异步 FIFO 落在 **BRAM 84/128**。
 
 **重要**：上板功能验证仍按 `docs/selftest_loopback.md` 的 L0→L3 分级推进；请勿在简历中声称“已上板验证”直至对应级别实测通过。
 仓库中的 `scripts/README_vivado.md` 给出了构建步骤。

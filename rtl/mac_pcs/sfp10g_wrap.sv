@@ -2,33 +2,6 @@
 // GT Wizard 64B66B gearbox + eth_mac_phy_10g soft PCS/MAC
 `timescale 1ns / 1ps
 
-module sfp10g_pulse_cdc (
-    input  logic src_clk,
-    input  logic src_rst_n,
-    input  logic src_pulse,
-    input  logic dst_clk,
-    input  logic dst_rst_n,
-    output logic dst_pulse
-);
-    logic tog, meta, sync, sync_d;
-    always_ff @(posedge src_clk or negedge src_rst_n) begin
-        if (!src_rst_n) tog <= 1'b0;
-        else if (src_pulse) tog <= ~tog;
-    end
-    always_ff @(posedge dst_clk or negedge dst_rst_n) begin
-        if (!dst_rst_n) begin
-            meta   <= 1'b0;
-            sync   <= 1'b0;
-            sync_d <= 1'b0;
-        end else begin
-            meta   <= tog;
-            sync   <= meta;
-            sync_d <= sync;
-        end
-    end
-    assign dst_pulse = sync ^ sync_d;
-endmodule
-
 module sfp10g_wrap #(
     parameter bit IGNORE_RX_RESET_REQ = 1'b1
 ) (
@@ -363,22 +336,22 @@ module sfp10g_wrap #(
         end
     end
 
-    sfp10g_pulse_cdc u_cdc_tx0 (
+    netsec_pulse_cdc u_cdc_tx0 (
         .src_clk(tx_clk), .src_rst_n(rst_tx_n), .src_pulse(pulse_tx[0]),
         .dst_clk(axi_clk), .dst_rst_n(rst_n), .dst_pulse(pulse_tx0_axi));
-    sfp10g_pulse_cdc u_cdc_tx1 (
+    netsec_pulse_cdc u_cdc_tx1 (
         .src_clk(tx_clk), .src_rst_n(rst_tx_n), .src_pulse(pulse_tx[1]),
         .dst_clk(axi_clk), .dst_rst_n(rst_n), .dst_pulse(pulse_tx1_axi));
-    sfp10g_pulse_cdc u_cdc_rx0 (
+    netsec_pulse_cdc u_cdc_rx0 (
         .src_clk(rx_clk0), .src_rst_n(rst_rx0_n), .src_pulse(pulse_rx[0]),
         .dst_clk(axi_clk), .dst_rst_n(rst_n), .dst_pulse(pulse_rx0_axi));
-    sfp10g_pulse_cdc u_cdc_rx1 (
+    netsec_pulse_cdc u_cdc_rx1 (
         .src_clk(rx_clk1), .src_rst_n(rst_rx1_n), .src_pulse(pulse_rx[1]),
         .dst_clk(axi_clk), .dst_rst_n(rst_n), .dst_pulse(pulse_rx1_axi));
-    sfp10g_pulse_cdc u_cdc_bd0 (
+    netsec_pulse_cdc u_cdc_bd0 (
         .src_clk(rx_clk0), .src_rst_n(rst_rx0_n), .src_pulse(pulse_bad[0]),
         .dst_clk(axi_clk), .dst_rst_n(rst_n), .dst_pulse(pulse_bad0_axi));
-    sfp10g_pulse_cdc u_cdc_bd1 (
+    netsec_pulse_cdc u_cdc_bd1 (
         .src_clk(rx_clk1), .src_rst_n(rst_rx1_n), .src_pulse(pulse_bad[1]),
         .dst_clk(axi_clk), .dst_rst_n(rst_n), .dst_pulse(pulse_bad1_axi));
 

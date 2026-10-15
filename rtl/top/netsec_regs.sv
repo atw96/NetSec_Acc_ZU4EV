@@ -114,6 +114,13 @@ module netsec_regs (
     input  logic         ns10g_aes1_done,
     input  logic [127:0] ns10g_aes0_ct,
     input  logic [127:0] ns10g_aes1_ct,
+    output logic [383:0] dpi_pat_hi,
+    input  logic         pulse_ns10g_flow0,
+    input  logic         pulse_ns10g_flow1,
+    input  logic [15:0]  pulse_ns10g_phit0,
+    input  logic [15:0]  pulse_ns10g_phit1,
+    input  logic         pulse_ns10g_fold0,
+    input  logic         pulse_ns10g_fold1,
     input  logic [1:0]   mac_speed,
     input  logic [1:0]   last_action,
 
@@ -192,6 +199,11 @@ module netsec_regs (
     logic [31:0] cnt_n1_rx, cnt_n1_tx, cnt_n1_fwd, cnt_n1_drop, cnt_n1_mir, cnt_n1_dpi;
     logic [31:0] cnt_n0_badrx, cnt_n1_badrx, cnt_n0_ovf, cnt_n1_ovf, cnt_n0_csum, cnt_n1_csum;
     logic        ns10g_aes0_sticky, ns10g_aes1_sticky, ns10g_csum0_sticky, ns10g_csum1_sticky;
+    logic        ns10g_fold0_sticky, ns10g_fold1_sticky;
+    logic [31:0] pat_hi [0:11];
+    logic [31:0] cnt_flow0, cnt_flow1;
+    logic [15:0] cnt_hit0 [0:15];
+    logic [15:0] cnt_hit1 [0:15];
 
     assign ctrl_enable    = reg_ctrl[0];
     assign soft_reset     = reg_ctrl[1];
@@ -213,6 +225,9 @@ module netsec_regs (
     assign dpi_pat1 = pat1;
     assign dpi_pat2 = pat2;
     assign dpi_pat3 = pat3;
+    assign dpi_pat_hi = {pat_hi[11], pat_hi[10], pat_hi[9], pat_hi[8],
+                         pat_hi[7],  pat_hi[6],  pat_hi[5], pat_hi[4],
+                         pat_hi[3],  pat_hi[2],  pat_hi[1], pat_hi[0]};
 
     assign mdio_phy_addr = reg_mdio_ctrl[4:0];
     assign mdio_reg_addr = reg_mdio_ctrl[12:8];
@@ -255,6 +270,9 @@ module netsec_regs (
             pat1 <= 32'h636d642e;
             pat2 <= 32'h53454c45;
             pat3 <= 32'h90909090;
+            pat_hi[0] <= 32'h504F5354; // "POST"
+            for (int pj = 1; pj < 12; pj = pj + 1)
+                pat_hi[pj] <= {8'hA0 + pj[7:0], 8'h5A, 8'h3C, 8'hC3};
             reg_mdio_ctrl  <= 32'h0000_0001; // PHY addr = 1
             reg_mdio_wdata <= '0;
             reg_rgmii_dly  <= '0;
@@ -295,7 +313,7 @@ module netsec_regs (
                 w_ok <= 1'b1;
 
             if (aw_ok && w_ok && !s_axi_bvalid) begin
-                unique case (awaddr_r[8:0])
+                case (awaddr_r[8:0])
                     9'h000: reg_ctrl       <= s_axi_wdata;
                     9'h008: reg_loopback   <= s_axi_wdata;
                     9'h030: key_w0         <= s_axi_wdata;
@@ -327,7 +345,10 @@ module netsec_regs (
                     9'h05C: reg_rgmii_dly  <= s_axi_wdata;
                     9'h0DC: reg_sfp10g_ctrl <= s_axi_wdata;
                     9'h100: reg_ns10g_ctrl  <= s_axi_wdata;
-                    default: ;
+                    default: begin
+                        if (awaddr_r[8:0] >= 9'h180 && awaddr_r[8:0] <= 9'h1AC)
+                            pat_hi[(awaddr_r[8:0] - 9'h180) >> 2] <= s_axi_wdata;
+                    end
                 endcase
                 s_axi_bvalid <= 1'b1;
                 s_axi_bresp  <= 2'b00;
@@ -357,6 +378,12 @@ module netsec_regs (
             cnt_n0_csum <= '0; cnt_n1_csum <= '0;
             ns10g_aes0_sticky <= 1'b0; ns10g_aes1_sticky <= 1'b0;
             ns10g_csum0_sticky <= 1'b0; ns10g_csum1_sticky <= 1'b0;
+            ns10g_fold0_sticky <= 1'b0; ns10g_fold1_sticky <= 1'b0;
+            cnt_flow0 <= '0; cnt_flow1 <= '0;
+            for (int hk = 0; hk < 16; hk = hk + 1) begin
+                cnt_hit0[hk] <= '0;
+                cnt_hit1[hk] <= '0;
+            end
             aes_done_sticky <= 1'b0;
             csum_valid_sticky <= 1'b0;
             modexp_done_sticky <= 1'b0;
@@ -406,6 +433,14 @@ module netsec_regs (
             end
             if (ns10g_aes0_done) ns10g_aes0_sticky <= 1'b1;
             if (ns10g_aes1_done) ns10g_aes1_sticky <= 1'b1;
+            if (pulse_ns10g_fold0) ns10g_fold0_sticky <= 1'b1;
+            if (pulse_ns10g_fold1) ns10g_fold1_sticky <= 1'b1;
+            if (pulse_ns10g_flow0) cnt_flow0 <= cnt_flow0 + 1'b1;
+            if (pulse_ns10g_flow1) cnt_flow1 <= cnt_flow1 + 1'b1;
+            for (int hi = 0; hi < 16; hi = hi + 1) begin
+                if (pulse_ns10g_phit0[hi]) cnt_hit0[hi] <= cnt_hit0[hi] + 1'b1;
+                if (pulse_ns10g_phit1[hi]) cnt_hit1[hi] <= cnt_hit1[hi] + 1'b1;
+            end
             if (aes_start)
                 aes_done_sticky <= 1'b0;
             else if (aes_done)
@@ -452,7 +487,7 @@ module netsec_regs (
                 s_axi_arready <= 1'b0;
 
             if (s_axi_arvalid && s_axi_arready) begin
-                unique case (s_axi_araddr[8:0])
+                case (s_axi_araddr[8:0])
                     9'h000: s_axi_rdata <= reg_ctrl;
                     9'h004: s_axi_rdata <= status_word;
                     9'h008: s_axi_rdata <= reg_loopback;
@@ -508,7 +543,8 @@ module netsec_regs (
                     9'h0DC: s_axi_rdata <= reg_sfp10g_ctrl;
                     9'h100: s_axi_rdata <= reg_ns10g_ctrl;
                     9'h104: s_axi_rdata <= {14'd0, ns10g_csum1_sticky, ns10g_csum0_sticky,
-                                           6'd0, ns10g_aes1_sticky, ns10g_aes0_sticky,
+                                           4'd0, ns10g_fold1_sticky, ns10g_fold0_sticky,
+                                           ns10g_aes1_sticky, ns10g_aes0_sticky,
                                            ns10g_last1, ns10g_last0};
                     9'h108: s_axi_rdata <= cnt_n0_rx;
                     9'h10C: s_axi_rdata <= cnt_n0_tx;
@@ -538,7 +574,17 @@ module netsec_regs (
                     9'h174: s_axi_rdata <= ns10g_aes1_ct[63:32];
                     9'h178: s_axi_rdata <= ns10g_aes1_ct[95:64];
                     9'h17C: s_axi_rdata <= ns10g_aes1_ct[127:96];
-                    default: s_axi_rdata <= 32'hDEAD_BEEF;
+                    9'h1B0: s_axi_rdata <= cnt_flow0;
+                    9'h1B4: s_axi_rdata <= cnt_flow1;
+                    default: begin
+                        if (s_axi_araddr[8:0] >= 9'h180 && s_axi_araddr[8:0] <= 9'h1AC)
+                            s_axi_rdata <= pat_hi[(s_axi_araddr[8:0] - 9'h180) >> 2];
+                        else if (s_axi_araddr[8:0] >= 9'h1B8 && s_axi_araddr[8:0] <= 9'h1F4)
+                            s_axi_rdata <= {cnt_hit1[(s_axi_araddr[8:0] - 9'h1B8) >> 2],
+                                            cnt_hit0[(s_axi_araddr[8:0] - 9'h1B8) >> 2]};
+                        else
+                            s_axi_rdata <= 32'hDEAD_BEEF;
+                    end
                 endcase
                 s_axi_rvalid <= 1'b1;
                 s_axi_rresp  <= 2'b00;

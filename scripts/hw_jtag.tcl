@@ -383,6 +383,7 @@ proc nsec_ns10g_dump {} {
     puts "N0_RX/TX/FWD/DROP/MIR/DPI [nsec_rd 0x108] [nsec_rd 0x10C] [nsec_rd 0x110] [nsec_rd 0x114] [nsec_rd 0x118] [nsec_rd 0x11C]"
     puts "N1_RX/TX/FWD/DROP/MIR/DPI [nsec_rd 0x120] [nsec_rd 0x124] [nsec_rd 0x128] [nsec_rd 0x12C] [nsec_rd 0x130] [nsec_rd 0x134]"
     puts "BADRX0/1 OVF0/1 CSUM0/1 [nsec_rd 0x140] [nsec_rd 0x144] [nsec_rd 0x148] [nsec_rd 0x14C] [nsec_rd 0x150] [nsec_rd 0x154]"
+    puts "FLOW0/1 [nsec_rd 0x1B0] [nsec_rd 0x1B4]"
 }
 
 proc nsec_l5_test {} {
@@ -424,4 +425,26 @@ proc nsec_l5c_test {} {
     }
 }
 
-puts "INFO: hw_jtag.tcl loaded. nsec_connect / nsec_program / nsec_dump / nsec_l0_test / nsec_sfp10g_check / nsec_l5_test / nsec_l5c_test"
+puts "INFO: hw_jtag.tcl loaded. nsec_connect / nsec_program / nsec_dump / nsec_l0_test / nsec_sfp10g_check / nsec_l5_test / nsec_l5c_test / nsec_l5d_test"
+
+# L5d: 1 s of BIST generator rate, then 1 s of INLINE datapath slope.
+proc nsec_l5d_test {} {
+    nsec_wr 0xDC 0x1
+    nsec_wr 0x100 0xC
+    after 20
+    set tx0a [nsec_rd 0xC4]
+    set rx0a [nsec_rd 0xC8]
+    after 1000
+    set tx0b [nsec_rd 0xC4]
+    set rx0b [nsec_rd 0xC8]
+    nsec_wr 0x100 0x5
+    after 20
+    set dpa [nsec_rd 0x108]
+    set fwa [nsec_rd 0x110]
+    after 1000
+    set dpb [nsec_rd 0x108]
+    set fwb [nsec_rd 0x110]
+    puts "L5d BIST 1s MAC_TX0 $tx0a -> $tx0b  MAC_RX0 $rx0a -> $rx0b"
+    puts "L5d INLINE 1s DP_RX0 $dpa -> $dpb  FWD0 $fwa -> $fwb"
+    puts "PASS: L5d samples recorded"
+}

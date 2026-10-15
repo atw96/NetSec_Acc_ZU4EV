@@ -24,11 +24,9 @@ if {[current_project -quiet] eq ""} {
 
 update_compile_order -fileset sources_1
 set_property top system_top [current_fileset]
-# Default image: copper RGMII + dual-SFP 10G. 1G PRBS (ENABLE_SFP) is mutually exclusive
-# with 10G on X0Y4/X0Y5. create_sfp_pcs.tcl latches ENABLE_SFP=1 — keep it 0 here.
+# Default image: copper RGMII + dual-SFP 64-bit line-rate inspection.
 if {![info exists ::NETSEC_GENERICS]} {
-    # clk90off is the only RGMII phase that echoed on AXU4EVB-P
-    set ::NETSEC_GENERICS {NETSEC_ENABLE_SFP=1'b0 NETSEC_ENABLE_SFP10G=1'b1 RGMII_TX_USE_CLK90=FALSE}
+    set ::NETSEC_GENERICS {NETSEC_ENABLE_SFP10G=1'b1 RGMII_TX_USE_CLK90=FALSE}
 }
 set_property generic $::NETSEC_GENERICS [current_fileset]
 set_property verilog_define {NETSEC_SFP_PORTS} [current_fileset]
@@ -48,6 +46,7 @@ if {[string match "*ERROR*" $synth_status] || [string match "*Failed*" $synth_st
 
 open_run synth_1
 report_utilization -file [file join $rpt_dir utilization_synth.rpt]
+report_utilization -hierarchical -file [file join $rpt_dir utilization_synth_hier.rpt]
 close_design
 
 launch_runs impl_1 -to_step write_bitstream -jobs 8

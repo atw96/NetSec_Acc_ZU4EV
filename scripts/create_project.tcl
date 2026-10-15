@@ -22,12 +22,14 @@ set_property default_lib work [current_project]
 set files [list \
     [file join $repo_root rtl crypto aes aes_sbox_pkg.sv] \
     [file join $repo_root rtl common sync_fifo.sv] \
-    [file join $repo_root rtl common cdc_sync.sv] \
     [file join $repo_root rtl packet_parser packet_parser.sv] \
     [file join $repo_root rtl flow_table flow_table.sv] \
+    [file join $repo_root rtl flow_table flow_table_uram.sv] \
     [file join $repo_root rtl tcpip_offload checksum_rfc1071.sv] \
     [file join $repo_root rtl dpi_engine dpi_matcher.sv] \
+    [file join $repo_root rtl dpi_engine dpi_match64.sv] \
     [file join $repo_root rtl crypto aes aes128_core.sv] \
+    [file join $repo_root rtl crypto aes aes128_pipe.sv] \
     [file join $repo_root rtl crypto modexp modexp_demo.sv] \
     [file join $repo_root rtl ips_decision ips_decision.sv] \
 ]
@@ -78,21 +80,17 @@ foreach f {
 lappend files \
     [file join $repo_root rtl mac_pcs rgmii_mac_wrap.sv] \
     [file join $repo_root rtl mac_pcs mdio_master.sv] \
-    [file join $repo_root rtl mac_pcs sfp_pcs_wrap.sv] \
-    [file join $repo_root rtl mac_pcs gt_prbs_wrap.sv] \
     [file join $repo_root rtl mac_pcs sfp10g_wrap.sv] \
     [file join $repo_root rtl top netsec_cdc.sv] \
     [file join $repo_root rtl top netsec_regs.sv] \
     [file join $repo_root rtl top pkt_gen_bram.sv] \
     [file join $repo_root rtl top pkt_gen_10g.sv] \
-    [file join $repo_root rtl top sfp10g_regs.sv] \
-    [file join $repo_root rtl top netsec_axis_bridge.sv] \
-    [file join $repo_root rtl top netsec10g_switch.sv] \
+    [file join $repo_root rtl top pkt_gen_inj64.sv] \
+    [file join $repo_root rtl top netsec_dp64.sv] \
+    [file join $repo_root rtl top netsec10g_switch64.sv] \
     [file join $repo_root rtl top netsec_datapath.sv] \
     [file join $repo_root rtl top netsec_top.sv] \
-    [file join $repo_root rtl top system_top.sv] \
-    [file join $repo_root rtl top system_top_sfp.sv] \
-    [file join $repo_root rtl top system_top_sfp10g.sv]
+    [file join $repo_root rtl top system_top.sv]
 
 add_files -norecurse $files
 set_property file_type SystemVerilog [get_files *.sv]
@@ -116,6 +114,6 @@ source [file join $repo_root scripts create_bd.tcl]
 # ---- Dual-lane 10G GT Wizard (X0Y4/X0Y5). Sourced again by build.tcl if missing. ----
 source [file join $repo_root scripts create_gt_10g.tcl]
 set_property verilog_define {NETSEC_SFP_PORTS} [current_fileset]
-set_property generic {NETSEC_ENABLE_SFP=1'b0 NETSEC_ENABLE_SFP10G=1'b1 RGMII_TX_USE_CLK90=FALSE} [current_fileset]
+set_property generic {NETSEC_ENABLE_SFP10G=1'b1 RGMII_TX_USE_CLK90=FALSE} [current_fileset]
 
 puts "INFO: Project created (default top system_top includes dual-SFP 10G). Next: source scripts/build.tcl"

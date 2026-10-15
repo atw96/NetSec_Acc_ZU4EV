@@ -2,7 +2,6 @@
 `timescale 1ns / 1ps
 
 module system_top #(
-    parameter bit NETSEC_ENABLE_SFP    = 1'b0,
     parameter bit NETSEC_ENABLE_SFP10G = 1'b1,
     parameter bit NETSEC_ENABLE_ILA    = 1'b1,
     parameter     RGMII_TX_USE_CLK90   = "TRUE"
@@ -88,7 +87,6 @@ module system_top #(
     );
 
     netsec_top #(
-        .NETSEC_ENABLE_SFP(NETSEC_ENABLE_SFP),
         .NETSEC_ENABLE_SFP10G(NETSEC_ENABLE_SFP10G),
         .NETSEC_ENABLE_ILA(NETSEC_ENABLE_ILA),
         .RGMII_TX_USE_CLK90(RGMII_TX_USE_CLK90)

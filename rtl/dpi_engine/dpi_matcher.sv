@@ -31,7 +31,12 @@ module u_dpi_matcher #(
     logic [7:0] inch     [0:N-1];
     logic [4:0] node_cnt;
 
-    (* ram_style = "distributed" *) logic [4:0] trans [0:N-1][0:255];
+    (* ram_style = "distributed" *) logic [4:0] trans [0:N*256-1];
+    wire [12:0] trans_waddr = {fill_s, fill_c[7:0]};
+    wire        trans_we    = rst_n && (bld == ST_EXPAND) && (ex_hit || (fill_t == 5'd0));
+    wire [4:0]  trans_wdata = ex_hit ? ex_to : 5'd0;
+    wire [12:0] trans_raddr = {match_st, data};
+    wire [4:0]  trans_rd    = trans[trans_raddr];
 
     logic [31:0] pat0_d, pat1_d, pat2_d, pat3_d;
 
@@ -104,6 +109,12 @@ module u_dpi_matcher #(
                 ex_to  = edge_to[fill_t][ll];
             end
         end
+    end
+
+    // One write port, asynchronous read. Vivado infers LUTRAM from this shape.
+    always_ff @(posedge clk) begin
+        if (trans_we)
+            trans[trans_waddr] <= trans_wdata;
     end
 
     assign ready = (bld == ST_READY);
@@ -198,7 +209,6 @@ module u_dpi_matcher #(
                 end
                 ST_EXPAND: begin
                     if (ex_hit) begin
-                        trans[fill_s][fill_c[7:0]] <= ex_to;
                         if (fill_c == 9'd255) begin
                             fill_c <= 9'd0;
                             if (fill_s + 5'd1 >= node_cnt)
@@ -212,7 +222,6 @@ module u_dpi_matcher #(
                             fill_t <= fill_s;
                         end
                     end else if (fill_t == 5'd0) begin
-                        trans[fill_s][fill_c[7:0]] <= 5'd0;
                         if (fill_c == 9'd255) begin
                             fill_c <= 9'd0;
                             if (fill_s + 5'd1 >= node_cnt)
@@ -231,9 +240,9 @@ module u_dpi_matcher #(
                 end
                 ST_READY: begin
                     if (data_valid) begin
-                        match_st   <= data_last ? 5'd0 : trans[match_st][data];
-                        hit_vector <= out_t[trans[match_st][data]];
-                        hit_valid  <= |out_t[trans[match_st][data]];
+                        match_st   <= data_last ? 5'd0 : trans_rd;
+                        hit_vector <= out_t[trans_rd];
+                        hit_valid  <= |out_t[trans_rd];
                     end
                 end
                 default: bld <= ST_CLR;

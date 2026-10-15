@@ -1,6 +1,6 @@
 ################################################################################
 # scripts/create_debug_cores.tcl
-# Generate ILA IP: ila_logic @ 125 MHz AXIS, ila_rgmii @ rgmii_rxc
+# Generate ILA IP: ila_logic @ 125 MHz AXIS.
 ################################################################################
 
 proc _netsec_make_ila {name probes widths {depth 1024}} {
@@ -27,11 +27,6 @@ proc _netsec_make_ila {name probes widths {depth 1024}} {
 _netsec_make_ila ila_logic \
     {probe0 probe1 probe2 probe3 probe4} \
     {11 11 11 11 16} \
-    1024
-
-_netsec_make_ila ila_rgmii \
-    {probe0} \
-    {5} \
     1024
 
 puts "INFO: debug cores ready"

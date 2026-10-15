@@ -8,9 +8,9 @@
 set repo_root [file normalize [file join [file dirname [info script]] ..]]
 source [file join $repo_root scripts hw_jtag.tcl]
 
-set bit [file join $repo_root bitstream_output system_top_rxdly.bit]
+set bit [file join $repo_root bitstream_output system_top.bit]
 if {![file exists $bit]} {
-    set bit [file join $repo_root bitstream_output system_top.bit]
+    set bit [file join $repo_root bitstream_output system_top_rxdly.bit]
 }
 if {![file exists $bit]} {
     puts "NEED_HW: missing bitstream"; flush stdout; exit 2
@@ -105,6 +105,11 @@ if {[catch {nsec_l5_test} e2]} {
 puts "===== L5c on-chip inject nsec_l5c_test ====="; flush stdout
 if {[catch {nsec_l5c_test} e3]} {
     puts "NEED_HW: nsec_l5c_test: $e3"; flush stdout; exit 3
+}
+
+puts "===== L5d throughput nsec_l5d_test ====="; flush stdout
+if {[catch {nsec_l5d_test} e4]} {
+    puts "NEED_HW: nsec_l5d_test: $e4"; flush stdout; exit 3
 }
 
 puts "INFO: hw_l5_bringup done"; flush stdout

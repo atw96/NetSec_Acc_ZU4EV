@@ -63,8 +63,6 @@ generate_target all [get_ips gt_sfp_10g]
 set extras [list \
     [file join $repo_root rtl mac_pcs sfp10g_wrap.sv] \
     [file join $repo_root rtl top pkt_gen_10g.sv] \
-    [file join $repo_root rtl top sfp10g_regs.sv] \
-    [file join $repo_root rtl top system_top_sfp10g.sv] \
 ]
 foreach f $extras {
     if {[file exists $f] && [llength [get_files -quiet $f]] == 0} {
@@ -74,4 +72,4 @@ foreach f $extras {
 }
 
 puts "INFO: gt_sfp_10g generated (10.3125G / Wizard refclk 125.7621951; crystal 125.000)."
-puts "INFO: Default system_top build.tcl instantiates this IP. Optional isolated image: scripts/build_sfp10g.tcl"
+puts "INFO: Default system_top build.tcl instantiates this IP."

@@ -190,7 +190,7 @@ vivado -mode batch -source scripts/hw_ibert_test.tcl
 
 `hw_ibert_test.tcl` 烧 `bitstream_output/system_top_ibert.bit`，近端 PMA + PRBS 7-bit，打印 `LOGIC.LINK` / `RX_BER`。
 
-默认 `system_top` 含双口 10G；`nsec_l4_test` / `nsec_sfp10g_check` 读 `0xC0`。历史 1G PRBS 图：`scripts/build_sfp.tcl` → `system_top_sfp.bit`（与 10G 互斥，勿同时例化）。`scripts/hw_l4_sfp.tcl` 烧 1G SFP 图后保持数秒并**自动烧回 rxdly**。
+默认 `system_top` 含双口 10G；`nsec_l4_test` / `nsec_sfp10g_check` 读 `0xC0`。1G PRBS 独立图已从默认工程删除。
 
 无光模块时不要用 PCS 光口环回当主路径。
 
@@ -230,9 +230,7 @@ nsec_sfp10g_check
 | 0xD0 / 0xD4 / 0xD8 | CNT_TX1 / RX1 / BAD1 | 口 1（SFP2 / X0Y5） |
 | 0xDC | SFP10G_CTRL | `[0]` tx_enable（默认 1） |
 
-通过：两口 `block_lock=1`，`CNT_RX` 随对端 `CNT_TX` 增长。不以 LED 为判据。
-
-隔离调试仍可用 `build_sfp10g.tcl` + `hw_sfp10g.tcl`（独立 top，计数在 `0x04`/`0x10`）。
+通过：两口 `block_lock=1`，`CNT_RX` 随对端 `CNT_TX` 增长。不以 LED 为判据。默认图用 `nsec_sfp10g_check` 读 `0xC0`。
 
 旧 1.25G 单口 IBERT 外环（`hw_ibert_optical.tcl`）保留作历史；10G 单速率模块在 1.25G 上经常不锁。
 
@@ -244,18 +242,21 @@ nsec_sfp10g_check
 
 ### L5 — 10G 检测通路（INLINE）
 
-默认 `system_top` 已含 2× `netsec_datapath`（`0x100`）。默认 mode=BIST，L4/`nsec_sfp10g_check` 不变。
+默认 `system_top` 已含 2× `netsec_dp64`（`0x100`）。默认 mode=BIST，L4/`nsec_sfp10g_check` 不变。
 
 ```tcl
 nsec_sfp10g_check
 nsec_l5_test
+nsec_l5c_test
+nsec_l5d_test
 ```
 
-| 检查 | 期望 | 2026-09-25 实测 | 通过 |
+| 检查 | 期望 | 2026-10-14 实测 | 通过 |
 |------|------|-----------------|------|
-| L5a | `0xC0` 双口 lock，`0xC8`/`0xD4` 增长（BIST） | 11:51 `0xC0=0x2F07`；RX0 `0x11b10c→0x1535a0` RX1 `0x11acdc→0x1531d6` | **是** |
-| L5b | `nsec_wr 0x100 0x5` 后 `0x108`/`0x120` 与 `0x11C`/`0x134` DPI 随光纤互环增长 | CTRL=0x5；datapath 计数全 0；BADRX `0x12a31c`/`0x1291bd` | **部分** |
-| L5c | 无仪表时片上注帧：`nsec_wr 0x100 0x45`，`0x108`/`0x11C` 涨 | 13:21 RX0=2 DPI0=1 MIR0=1 FWD0=1 | **是** |
+| L5a | `0xC0` 双口 lock，`0xC8`/`0xD4` 增长（BIST） | `0xC0=0x00000F07`；3 s 窗口 RX0 +231820，BAD0 +231826 | **部分**（BAD 跟踪 RX） |
+| L5b | `nsec_wr 0x100 0x5` 后 `0x108`/`0x120` 增长 | 数据面计数全 0；BADRX0/1=`0x001C86E6`/`0x001C88EB` | **部分** |
+| L5c | `nsec_wr 0x100 0x45` 后 `0x108`/`0x11C` 涨 | RX0=2 DPI0=1 MIR0=1 FWD0=1 | **是** |
+| L5d | 记录 BIST 与 INLINE 的 1 s 斜率 | BIST MAC TX0 +153756、RX0 +77259；INLINE DP RX0/FWD0 增量 0 | 已记录 |
 
 G5：默认 `IGNORE_RX_RESET_REQ=1`，避免 `ber_mon` 在 ~10.25G 实速率下反复 RX 复位（H1）。
 

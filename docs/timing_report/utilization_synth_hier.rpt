@@ -1,0 +1,212 @@
+Copyright 1986-2020 Xilinx, Inc. All Rights Reserved.
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2020.1 (win64) Build 2902540 Wed May 27 19:54:49 MDT 2020
+| Date         : Tue Oct 13 22:55:54 2026
+| Host         : redacted running 64-bit major release  (build 9200)
+| Command      : report_utilization -hierarchical -hierarchical_depth 4 -file <repo>/docs/timing_report/utilization_synth_hier.rpt
+| Design       : system_top
+| Device       : xczu4evsfvc784-1
+| Design State : Synthesized
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Utilization Design Information
+
+Table of Contents
+-----------------
+1. Utilization by Hierarchy
+
+1. Utilization by Hierarchy
+---------------------------
+
++---------------------------------+---------------------------------------------------------------------+------------+------------+---------+------+--------+--------+--------+------+------------+
+|             Instance            |                                Module                               | Total LUTs | Logic LUTs | LUTRAMs | SRLs |   FFs  | RAMB36 | RAMB18 | URAM | DSP Blocks |
++---------------------------------+---------------------------------------------------------------------+------------+------------+---------+------+--------+--------+--------+------+------------+
+| system_top                      |                                                               (top) |      87760 |      86407 |    1188 |  165 | 108982 |     82 |      4 |   32 |          4 |
+|   (system_top)                  |                                                               (top) |         98 |         98 |       0 |    0 |      0 |      0 |      0 |    0 |          0 |
+|   bd_i                          |                                                    design_1_wrapper |       1914 |       1745 |     164 |    5 |   2622 |      2 |      1 |    0 |          0 |
+|     (bd_i)                      |                                                    design_1_wrapper |        119 |        119 |       0 |    0 |      0 |      0 |      0 |    0 |          0 |
+|     design_1_i                  |                                                            design_1 |       1795 |       1626 |     164 |    5 |   2622 |      2 |      1 |    0 |          0 |
+|       axi_smc                   |                                                  design_1_axi_smc_0 |        864 |        857 |       4 |    3 |    858 |      0 |      0 |    0 |          0 |
+|         inst                    |                                          design_1_axi_smc_0_bd_afc3 |        864 |        857 |       4 |    3 |    858 |      0 |      0 |    0 |          0 |
+|       jtag_axi_0                |                                               design_1_jtag_axi_0_0 |        631 |        469 |     160 |    2 |   1763 |      2 |      1 |    0 |          0 |
+|         (jtag_axi_0)            |                                               design_1_jtag_axi_0_0 |          0 |          0 |       0 |    0 |      0 |      0 |      0 |    0 |          0 |
+|         inst                    |                     design_1_jtag_axi_0_0_jtag_axi_v1_2_11_jtag_axi |        631 |        469 |     160 |    2 |   1763 |      2 |      1 |    0 |          0 |
+|       zynq_ultra_ps_e_0         |                                        design_1_zynq_ultra_ps_e_0_0 |        300 |        300 |       0 |    0 |      1 |      0 |      0 |    0 |          0 |
+|         (zynq_ultra_ps_e_0)     |                                        design_1_zynq_ultra_ps_e_0_0 |          0 |          0 |       0 |    0 |      0 |      0 |      0 |    0 |          0 |
+|         inst                    | design_1_zynq_ultra_ps_e_0_0_zynq_ultra_ps_e_v3_3_2_zynq_ultra_ps_e |        300 |        300 |       0 |    0 |      1 |      0 |      0 |    0 |          0 |
+|   dbg_hub                       |                                                          dbg_hub_CV |          0 |          0 |       0 |    0 |      0 |      0 |      0 |    0 |          0 |
+|   u_netsec                      |                                                          netsec_top |      85748 |      84564 |    1024 |  160 | 106360 |     80 |      3 |   32 |          4 |
+|     (u_netsec)                  |                                                          netsec_top |        719 |        719 |       0 |    0 |    141 |      0 |      0 |    0 |          0 |
+|     g_ila.u_ila_logic           |                                                           ila_logic |        870 |        710 |       0 |  160 |   1552 |      2 |      0 |    0 |          0 |
+|       (g_ila.u_ila_logic)       |                                                           ila_logic |          0 |          0 |       0 |    0 |      0 |      0 |      0 |    0 |          0 |
+|       inst                      |                                           ila_logic_ila_v6_2_11_ila |        870 |        710 |       0 |  160 |   1552 |      2 |      0 |    0 |          0 |
+|         (inst)                  |                                           ila_logic_ila_v6_2_11_ila |          1 |          1 |       0 |    0 |     66 |      0 |      0 |    0 |          0 |
+|         ila_core_inst           |                                      ila_logic_ila_v6_2_11_ila_core |        869 |        709 |       0 |  160 |   1486 |      2 |      0 |    0 |          0 |
+|     g_sfp10g.g_phit[0].u_h0     |                                                    netsec_pulse_cdc |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.g_phit[0].u_h1     |                                                  netsec_pulse_cdc_0 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.g_phit[10].u_h0    |                                                  netsec_pulse_cdc_1 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.g_phit[10].u_h1    |                                                  netsec_pulse_cdc_2 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.g_phit[11].u_h0    |                                                  netsec_pulse_cdc_3 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.g_phit[11].u_h1    |                                                  netsec_pulse_cdc_4 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.g_phit[12].u_h0    |                                                  netsec_pulse_cdc_5 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.g_phit[12].u_h1    |                                                  netsec_pulse_cdc_6 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.g_phit[13].u_h0    |                                                  netsec_pulse_cdc_7 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.g_phit[13].u_h1    |                                                  netsec_pulse_cdc_8 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.g_phit[14].u_h0    |                                                  netsec_pulse_cdc_9 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.g_phit[14].u_h1    |                                                 netsec_pulse_cdc_10 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.g_phit[15].u_h0    |                                                 netsec_pulse_cdc_11 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.g_phit[15].u_h1    |                                                 netsec_pulse_cdc_12 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.g_phit[1].u_h0     |                                                 netsec_pulse_cdc_13 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.g_phit[1].u_h1     |                                                 netsec_pulse_cdc_14 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.g_phit[2].u_h0     |                                                 netsec_pulse_cdc_15 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.g_phit[2].u_h1     |                                                 netsec_pulse_cdc_16 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.g_phit[3].u_h0     |                                                 netsec_pulse_cdc_17 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.g_phit[3].u_h1     |                                                 netsec_pulse_cdc_18 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.g_phit[4].u_h0     |                                                 netsec_pulse_cdc_19 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.g_phit[4].u_h1     |                                                 netsec_pulse_cdc_20 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.g_phit[5].u_h0     |                                                 netsec_pulse_cdc_21 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.g_phit[5].u_h1     |                                                 netsec_pulse_cdc_22 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.g_phit[6].u_h0     |                                                 netsec_pulse_cdc_23 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.g_phit[6].u_h1     |                                                 netsec_pulse_cdc_24 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.g_phit[7].u_h0     |                                                 netsec_pulse_cdc_25 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.g_phit[7].u_h1     |                                                 netsec_pulse_cdc_26 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.g_phit[8].u_h0     |                                                 netsec_pulse_cdc_27 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.g_phit[8].u_h1     |                                                 netsec_pulse_cdc_28 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.g_phit[9].u_h0     |                                                 netsec_pulse_cdc_29 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.g_phit[9].u_h1     |                                                 netsec_pulse_cdc_30 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_af0              |                                                     axis_async_fifo |         83 |         83 |       0 |    0 |    118 |      1 |      1 |    0 |          0 |
+|     g_sfp10g.u_af1              |                                                  axis_async_fifo_31 |        711 |        711 |       0 |    0 |    118 |      1 |      1 |    0 |          0 |
+|     g_sfp10g.u_cdc_ct0          |                                    netsec_level_cdc__parameterized1 |         64 |         64 |       0 |    0 |    256 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_cdc_ct1          |                                 netsec_level_cdc__parameterized1_32 |         32 |         32 |       0 |    0 |    256 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_cdc_inj          |                                                 netsec_pulse_cdc_33 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_cdc_key          |                                 netsec_level_cdc__parameterized1_34 |        384 |        384 |       0 |    0 |    256 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_cdc_la0          |                                                    netsec_level_cdc |          0 |          0 |       0 |    0 |      4 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_cdc_la1          |                                                 netsec_level_cdc_35 |          0 |          0 |       0 |    0 |      4 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_cdc_naes0        |                                    netsec_level_cdc__parameterized0 |          0 |          0 |       0 |    0 |      2 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_cdc_naes1        |                                 netsec_level_cdc__parameterized0_36 |          0 |          0 |       0 |    0 |      2 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_cdc_ndpen        |                                                 netsec_level_cdc_37 |          0 |          0 |       0 |    0 |      4 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_cdc_nmode        |                                                 netsec_level_cdc_38 |        135 |        135 |       0 |    0 |      4 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_cdc_p0t          |                                    netsec_level_cdc__parameterized2 |        186 |        186 |       0 |    0 |     64 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_cdc_p1t          |                                 netsec_level_cdc__parameterized2_39 |        186 |        186 |       0 |    0 |     64 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_cdc_p2t          |                                 netsec_level_cdc__parameterized2_40 |        188 |        188 |       0 |    0 |     64 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_cdc_p3t          |                                 netsec_level_cdc__parameterized2_41 |        186 |        186 |       0 |    0 |     64 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_cdc_phi          |                                    netsec_level_cdc__parameterized3 |       2244 |       2244 |       0 |    0 |    768 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_p_ad0            |                                                 netsec_pulse_cdc_42 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_p_ad1            |                                                 netsec_pulse_cdc_43 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_p_bd0            |                                                 netsec_pulse_cdc_44 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_p_bd1            |                                                 netsec_pulse_cdc_45 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_p_cs0            |                                                 netsec_pulse_cdc_46 |          2 |          2 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_p_cs1            |                                                 netsec_pulse_cdc_47 |          2 |          2 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_p_dp0            |                                                 netsec_pulse_cdc_48 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_p_dp1            |                                                 netsec_pulse_cdc_49 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_p_dr0            |                                                 netsec_pulse_cdc_50 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_p_dr1            |                                                 netsec_pulse_cdc_51 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_p_fl0            |                                                 netsec_pulse_cdc_52 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_p_fl1            |                                                 netsec_pulse_cdc_53 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_p_fo0            |                                                 netsec_pulse_cdc_54 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_p_fo1            |                                                 netsec_pulse_cdc_55 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_p_fw0            |                                                 netsec_pulse_cdc_56 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_p_fw1            |                                                 netsec_pulse_cdc_57 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_p_mi0            |                                                 netsec_pulse_cdc_58 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_p_mi1            |                                                 netsec_pulse_cdc_59 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_p_ov0            |                                                 netsec_pulse_cdc_60 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_p_ov1            |                                                 netsec_pulse_cdc_61 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_p_rx0            |                                                 netsec_pulse_cdc_62 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_p_rx1            |                                                 netsec_pulse_cdc_63 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_p_tx0            |                                                 netsec_pulse_cdc_64 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_p_tx1            |                                                 netsec_pulse_cdc_65 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_sfp10g           |                                                         sfp10g_wrap |       3784 |       3784 |       0 |    0 |   2939 |      0 |      0 |    0 |          0 |
+|       (g_sfp10g.u_sfp10g)       |                                                         sfp10g_wrap |         10 |         10 |       0 |    0 |    148 |      0 |      0 |    0 |          0 |
+|       g_mac[0].u_mac            |                                                     eth_mac_phy_10g |       1776 |       1776 |       0 |    0 |   1196 |      0 |      0 |    0 |          0 |
+|         (g_mac[0].u_mac)        |                                                     eth_mac_phy_10g |         51 |         51 |       0 |    0 |      0 |      0 |      0 |    0 |          0 |
+|         eth_mac_phy_10g_rx_inst |                                              eth_mac_phy_10g_rx_128 |        516 |        516 |       0 |    0 |    601 |      0 |      0 |    0 |          0 |
+|         eth_mac_phy_10g_tx_inst |                                              eth_mac_phy_10g_tx_129 |       1209 |       1209 |       0 |    0 |    595 |      0 |      0 |    0 |          0 |
+|       g_mac[1].u_mac            |                                                 eth_mac_phy_10g_117 |       1776 |       1776 |       0 |    0 |   1196 |      0 |      0 |    0 |          0 |
+|         (g_mac[1].u_mac)        |                                                 eth_mac_phy_10g_117 |         51 |         51 |       0 |    0 |      0 |      0 |      0 |    0 |          0 |
+|         eth_mac_phy_10g_rx_inst |                                                  eth_mac_phy_10g_rx |        516 |        516 |       0 |    0 |    601 |      0 |      0 |    0 |          0 |
+|         eth_mac_phy_10g_tx_inst |                                                  eth_mac_phy_10g_tx |       1209 |       1209 |       0 |    0 |    595 |      0 |      0 |    0 |          0 |
+|       u_cdc_bd0                 |                                                netsec_pulse_cdc_118 |          2 |          2 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|       u_cdc_bd1                 |                                                netsec_pulse_cdc_119 |          2 |          2 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|       u_cdc_rx0                 |                                                netsec_pulse_cdc_120 |          2 |          2 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|       u_cdc_rx1                 |                                                netsec_pulse_cdc_121 |          2 |          2 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|       u_cdc_tx0                 |                                                netsec_pulse_cdc_122 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|       u_cdc_tx1                 |                                                netsec_pulse_cdc_123 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|       u_gen0                    |                                                         pkt_gen_10g |         36 |         36 |       0 |    0 |     60 |      0 |      0 |    0 |          0 |
+|       u_gen1                    |                                         pkt_gen_10g__parameterized0 |         36 |         36 |       0 |    0 |     59 |      0 |      0 |    0 |          0 |
+|       u_gt                      |                                                          gt_sfp_10g |        128 |        128 |       0 |    0 |    244 |      0 |      0 |    0 |          0 |
+|         (u_gt)                  |                                                          gt_sfp_10g |          0 |          0 |       0 |    0 |      0 |      0 |      0 |    0 |          0 |
+|         inst                    |                                  gt_sfp_10g_gt_sfp_10g_gtwizard_top |        128 |        128 |       0 |    0 |    244 |      0 |      0 |    0 |          0 |
+|       u_rst_rx0                 |                                                        u_reset_sync |          4 |          4 |       0 |    0 |      2 |      0 |      0 |    0 |          0 |
+|       u_rst_rx1                 |                                                    u_reset_sync_124 |          2 |          2 |       0 |    0 |      2 |      0 |      0 |    0 |          0 |
+|       u_rst_tx                  |                                                    u_reset_sync_125 |          6 |          6 |       0 |    0 |      2 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_soft             |                                                 netsec_pulse_cdc_66 |          4 |          4 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     g_sfp10g.u_sw               |                                                  netsec10g_switch64 |      66043 |      66043 |       0 |    0 |  91206 |     74 |      0 |   32 |          0 |
+|       u_dpa                     |                                                         netsec_dp64 |      32560 |      32560 |       0 |    0 |  45563 |     37 |      0 |   16 |          0 |
+|         (u_dpa)                 |                                                         netsec_dp64 |       2870 |       2870 |       0 |    0 |  36724 |      0 |      0 |    0 |          0 |
+|         g_pipe.g_aes[0].u_aes   |                                                   u_aes128_pipe_102 |       9668 |       9668 |       0 |    0 |   2779 |      0 |      0 |    0 |          0 |
+|         g_pipe.g_aes[1].u_aes   |                                                   u_aes128_pipe_103 |       9694 |       9694 |       0 |    0 |   2779 |      0 |      0 |    0 |          0 |
+|         g_pipe.g_aes[2].u_aes   |                                                   u_aes128_pipe_104 |       9693 |       9693 |       0 |    0 |   2779 |      0 |      0 |    0 |          0 |
+|         u_dpi                   |                                                     dpi_match64_105 |         65 |         65 |       0 |    0 |     79 |      0 |      0 |    0 |          0 |
+|         u_ff                    |                                 axis_async_fifo__parameterized0_106 |        244 |        244 |       0 |    0 |    247 |     33 |      0 |    0 |          0 |
+|         u_ft                    |                                               u_flow_table_uram_107 |        249 |        249 |       0 |    0 |    170 |      4 |      0 |   16 |          0 |
+|         u_ips                   |                                                  u_ips_decision_108 |         77 |         77 |       0 |    0 |      6 |      0 |      0 |    0 |          0 |
+|       u_dpb                     |                                                      netsec_dp64_92 |      32660 |      32660 |       0 |    0 |  45569 |     37 |      0 |   16 |          0 |
+|         (u_dpb)                 |                                                      netsec_dp64_92 |       2776 |       2776 |       0 |    0 |  36724 |      0 |      0 |    0 |          0 |
+|         g_pipe.g_aes[0].u_aes   |                                                       u_aes128_pipe |       9668 |       9668 |       0 |    0 |   2779 |      0 |      0 |    0 |          0 |
+|         g_pipe.g_aes[1].u_aes   |                                                    u_aes128_pipe_93 |       9694 |       9694 |       0 |    0 |   2779 |      0 |      0 |    0 |          0 |
+|         g_pipe.g_aes[2].u_aes   |                                                    u_aes128_pipe_94 |       9693 |       9693 |       0 |    0 |   2779 |      0 |      0 |    0 |          0 |
+|         u_dpi                   |                                                         dpi_match64 |         65 |         65 |       0 |    0 |     79 |      0 |      0 |    0 |          0 |
+|         u_ff                    |                                     axis_async_fifo__parameterized0 |        438 |        438 |       0 |    0 |    253 |     33 |      0 |    0 |          0 |
+|         u_ft                    |                                                   u_flow_table_uram |        249 |        249 |       0 |    0 |    170 |      4 |      0 |   16 |          0 |
+|         u_ips                   |                                                   u_ips_decision_95 |         77 |         77 |       0 |    0 |      6 |      0 |      0 |    0 |          0 |
+|       u_inj                     |                                                       pkt_gen_inj64 |        824 |        824 |       0 |    0 |     74 |      0 |      0 |    0 |          0 |
+|     u_aes                       |                                                       u_aes128_core |       1255 |       1255 |       0 |    0 |    400 |      0 |      0 |    0 |          0 |
+|     u_cdc_act                   |                                                 netsec_pulse_cdc_67 |          3 |          3 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     u_cdc_adp                   |                                                 netsec_pulse_cdc_68 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     u_cdc_adpct                 |                                 netsec_level_cdc__parameterized1_69 |         80 |         80 |       0 |    0 |    256 |      0 |      0 |    0 |          0 |
+|     u_cdc_aesdp                 |                                 netsec_level_cdc__parameterized0_70 |          0 |          0 |       0 |    0 |      2 |      0 |      0 |    0 |          0 |
+|     u_cdc_akey                  |                                 netsec_level_cdc__parameterized1_71 |          0 |          0 |       0 |    0 |    256 |      0 |      0 |    0 |          0 |
+|     u_cdc_bad                   |                                                 netsec_pulse_cdc_72 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     u_cdc_dpi                   |                                                 netsec_pulse_cdc_73 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     u_cdc_drp                   |                                                 netsec_pulse_cdc_74 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     u_cdc_en                    |                                 netsec_level_cdc__parameterized0_75 |          0 |          0 |       0 |    0 |      2 |      0 |      0 |    0 |          0 |
+|     u_cdc_fcs                   |                                                 netsec_pulse_cdc_76 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     u_cdc_fwd                   |                                                 netsec_pulse_cdc_77 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     u_cdc_lb                    |                                    netsec_level_cdc__parameterized4 |         47 |         47 |       0 |    0 |      6 |      0 |      0 |    0 |          0 |
+|     u_cdc_ld                    |                                                 netsec_pulse_cdc_78 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     u_cdc_mg                    |                                                 netsec_pulse_cdc_79 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     u_cdc_mir                   |                                                 netsec_pulse_cdc_80 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     u_cdc_p0                    |                                 netsec_level_cdc__parameterized2_81 |         10 |         10 |       0 |    0 |     64 |      0 |      0 |    0 |          0 |
+|     u_cdc_p1                    |                                 netsec_level_cdc__parameterized2_82 |         10 |         10 |       0 |    0 |     64 |      0 |      0 |    0 |          0 |
+|     u_cdc_p2                    |                                 netsec_level_cdc__parameterized2_83 |         10 |         10 |       0 |    0 |     64 |      0 |      0 |    0 |          0 |
+|     u_cdc_p3                    |                                 netsec_level_cdc__parameterized2_84 |         10 |         10 |       0 |    0 |     64 |      0 |      0 |    0 |          0 |
+|     u_cdc_rx                    |                                                 netsec_pulse_cdc_85 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     u_cdc_sr                    |                                 netsec_level_cdc__parameterized0_86 |          4 |          4 |       0 |    0 |      2 |      0 |      0 |    0 |          0 |
+|     u_cdc_start                 |                                                 netsec_pulse_cdc_87 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     u_cdc_tap                   |                                    netsec_level_cdc__parameterized5 |          0 |          0 |       0 |    0 |     18 |      0 |      0 |    0 |          0 |
+|     u_cdc_tx                    |                                                 netsec_pulse_cdc_88 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     u_cdc_txg                   |                                                 netsec_pulse_cdc_89 |          1 |          1 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|     u_csum                      |                                                  u_checksum_rfc1071 |         46 |         46 |       0 |    0 |     33 |      0 |      0 |    0 |          0 |
+|     u_dp                        |                                                     netsec_datapath |       4828 |       3804 |    1024 |    0 |   3080 |      0 |      1 |    0 |          0 |
+|       (u_dp)                    |                                                     netsec_datapath |         71 |         71 |       0 |    0 |    379 |      0 |      0 |    0 |          0 |
+|       u_aes_dp                  |                                                    u_aes128_core_91 |        654 |        654 |       0 |    0 |    400 |      0 |      0 |    0 |          0 |
+|       u_dpi                     |                                                       u_dpi_matcher |       2182 |       1638 |     544 |    0 |   1492 |      0 |      0 |    0 |          0 |
+|       u_frame_fifo              |                                                         u_sync_fifo |         76 |         76 |       0 |    0 |     25 |      0 |      1 |    0 |          0 |
+|       u_ft                      |                                                        u_flow_table |       1781 |       1301 |     480 |    0 |    649 |      0 |      0 |    0 |          0 |
+|       u_ips                     |                                                      u_ips_decision |         11 |         11 |       0 |    0 |      5 |      0 |      0 |    0 |          0 |
+|       u_parser                  |                                                     u_packet_parser |         53 |         53 |       0 |    0 |    130 |      0 |      0 |    0 |          0 |
+|     u_gen                       |                                                        pkt_gen_bram |         97 |         97 |       0 |    0 |     22 |      0 |      0 |    0 |          0 |
+|     u_l1_fifo                   |                                         u_sync_fifo__parameterized0 |         18 |         18 |       0 |    0 |     20 |      0 |      0 |    0 |          0 |
+|     u_mac                       |                                                      rgmii_mac_wrap |        429 |        429 |       0 |    0 |    516 |      2 |      0 |    0 |          0 |
+|       (u_mac)                   |                                                      rgmii_mac_wrap |         13 |         13 |       0 |    0 |     33 |      0 |      0 |    0 |          0 |
+|       u_mac                     |                                               eth_mac_1g_rgmii_fifo |        416 |        416 |       0 |    0 |    483 |      2 |      0 |    0 |          0 |
+|         (u_mac)                 |                                               eth_mac_1g_rgmii_fifo |          4 |          4 |       0 |    0 |     12 |      0 |      0 |    0 |          0 |
+|         eth_mac_1g_rgmii_inst   |                                                    eth_mac_1g_rgmii |        217 |        217 |       0 |    0 |    213 |      0 |      0 |    0 |          0 |
+|         rx_fifo                 |                             axis_async_fifo_adapter__parameterized0 |        102 |        102 |       0 |    0 |    132 |      1 |      0 |    0 |          0 |
+|         tx_fifo                 |                                             axis_async_fifo_adapter |         93 |         93 |       0 |    0 |    126 |      1 |      0 |    0 |          0 |
+|     u_mdio                      |                                                         mdio_master |         55 |         55 |       0 |    0 |     81 |      0 |      0 |    0 |          0 |
+|     u_modexp                    |                                                       u_modexp_demo |        273 |        273 |       0 |    0 |    269 |      0 |      0 |    0 |          4 |
+|     u_regs                      |                                                         netsec_regs |       2682 |       2682 |       0 |    0 |   2895 |      0 |      0 |    0 |          0 |
++---------------------------------+---------------------------------------------------------------------+------------+------------+---------+------+--------+--------+--------+------+------------+
+
+
